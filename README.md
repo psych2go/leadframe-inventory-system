@@ -174,6 +174,14 @@ npm run build
 
 #### 6. PM2 启动后端
 
+`ecosystem.config.js` 必须设置 `interpreter` 为 venv 的 Python，否则 PM2 会用 Node.js 执行导致报错：
+
+```js
+// ecosystem.config.js（已包含在项目中，通常无需手动修改）
+interpreter: '/opt/leadframe-inventory/backend/venv/bin/python',
+script: '/opt/leadframe-inventory/backend/venv/bin/uvicorn',
+```
+
 ```bash
 cd /opt/leadframe-inventory
 pm2 start ecosystem.config.js

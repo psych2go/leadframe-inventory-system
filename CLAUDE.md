@@ -182,6 +182,22 @@ npm run build
 
 **5. PM2 启动后端**
 
+确保 `ecosystem.config.js` 中 `interpreter` 指向 venv 的 Python（PM2 默认用 Node.js 执行，会报语法错误）：
+
+```js
+module.exports = {
+  apps: [{
+    name: 'leadframe-inv',
+    cwd: '/opt/leadframe-inventory/backend',
+    interpreter: '/opt/leadframe-inventory/backend/venv/bin/python',
+    script: '/opt/leadframe-inventory/backend/venv/bin/uvicorn',
+    args: 'main:app --host 127.0.0.1 --port 8000',
+    env_file: '/opt/leadframe-inventory/.env',
+    max_memory_restart: '500M',
+  }]
+}
+```
+
 ```bash
 pm2 start ecosystem.config.js
 pm2 save

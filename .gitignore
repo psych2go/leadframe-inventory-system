@@ -51,5 +51,3 @@ backend/.vite/
 backend/package.json
 backend/package-lock.json
 
-# PM2 / 部署产物（服务器特定配置）
-ecosystem.config.js
