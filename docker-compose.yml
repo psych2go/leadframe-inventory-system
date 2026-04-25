@@ -1,0 +1,45 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # ── 企微 OAuth 配置（通过宿主机环境变量或 .env 注入）──
+      - WECORP_ID=${WECORP_ID:-}
+      - WECORP_SECRET=${WECORP_SECRET:-}
+      - WECORP_AGENT_ID=${WECORP_AGENT_ID:-}
+      - APP_BASE_URL=${APP_BASE_URL:-}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - AUTH_REQUIRED=${AUTH_REQUIRED:-false}
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - db-data:/app/data
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx-common.conf:/etc/nginx/common.conf:ro
+      - ./certs:/etc/nginx/ssl:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  nginx-logs:

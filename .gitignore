@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+backend/venv/
+
+# 环境变量和密钥
+backend/.env
+.env
+
+# 数据库
+backend/inventory.db
+
+# 上传文件
+backend/uploads/
+
+# 前端构建产物和依赖
+frontend/node_modules/
+frontend/dist/
+
+# 日志
+logs/
+backend/backend.log
+*.log
+
+# SSL 证书
+certs/
+
+# Claude Code 配置
+.claude/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# WSL/Home 目录残留的设备文件
+.bash_profile
+.bashrc
+.profile
+.zprofile
+.zshrc
+.gitconfig
+.ripgreprc
+.gitmodules
+.mcp.json
+.vscode
+.idea
+
+# Vite 缓存（后端目录误生成）
+backend/.vite/
+backend/package.json
+backend/package-lock.json
+
+# PM2 / 部署产物（服务器特定配置）
+ecosystem.config.js

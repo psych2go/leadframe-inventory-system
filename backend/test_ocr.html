@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR 关键词匹配测试</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; color: #333; }
+        .panel { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .panel h2 { margin-bottom: 12px; color: #555; font-size: 16px; }
+        textarea { width: 100%; height: 200px; border: 1px solid #ddd; border-radius: 6px; padding: 12px; font-size: 14px; font-family: monospace; resize: vertical; }
+        textarea:focus { outline: none; border-color: #1890ff; }
+        .actions { display: flex; gap: 10px; margin-top: 12px; }
+        button { padding: 10px 24px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+        .btn-primary { background: #1890ff; color: #fff; }
+        .btn-primary:hover { background: #40a9ff; }
+        .btn-secondary { background: #f0f0f0; color: #333; }
+        .btn-secondary:hover { background: #e0e0e0; }
+        .result { margin-top: 12px; }
+        .result table { width: 100%; border-collapse: collapse; }
+        .result th, .result td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; }
+        .result th { background: #fafafa; color: #666; font-weight: 500; width: 120px; }
+        .result td { color: #333; font-family: monospace; }
+        .result td.empty { color: #ccc; }
+        .error { color: #ff4d4f; margin-top: 10px; }
+        .hint { color: #999; font-size: 12px; margin-top: 8px; }
+        .examples { margin-top: 12px; }
+        .examples button { font-size: 12px; padding: 6px 12px; margin: 2px; background: #f5f5f5; color: #666; }
+        .examples button:hover { background: #e8e8e8; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px; }
+        .tag-manufacturer { background: #e6f7ff; color: #1890ff; }
+        .tag-aami { background: #fff7e6; color: #fa8c16; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>OCR 关键词匹配测试</h1>
+
+    <div class="panel">
+        <h2>粘贴 OCR 识别的 Markdown 文本</h2>
+        <textarea id="ocrText" placeholder="将标签 OCR 识别结果粘贴到这里..."></textarea>
+        <div class="examples">
+            <span style="color:#999;font-size:12px;">示例：</span>
+            <button onclick="loadExample('aami')">AAMI 标签</button>
+            <button onclick="loadExample('fusheng')">复盛标签</button>
+            <button onclick="loadExample('huayang')">华洋标签</button>
+            <button onclick="loadExample('no_keyword')">无关键词厂家</button>
+        </div>
+        <div class="actions">
+            <button class="btn-primary" onclick="testParse()">解析</button>
+            <button class="btn-secondary" onclick="clearAll()">清空</button>
+        </div>
+    </div>
+
+    <div class="panel" id="resultPanel" style="display:none;">
+        <h2>解析结果</h2>
+        <div class="result">
+            <table id="resultTable">
+                <tr><th>厂家</th><td id="r_manufacturer"></td></tr>
+                <tr><th>规格</th><td id="r_spec"></td></tr>
+                <tr><th>批号</th><td id="r_batch_no"></td></tr>
+                <tr><th>数量</th><td id="r_quantity"></td></tr>
+                <tr><th>生产日期</th><td id="r_production_date"></td></tr>
+                <tr><th>有效日期</th><td id="r_expiry_date"></td></tr>
+            </table>
+        </div>
+        <div id="aamiNote" style="display:none;margin-top:10px;">
+            <span class="tag tag-aami">AAMI 规则</span>
+            <span id="aamiRule" style="font-size:13px;color:#666;"></span>
+        </div>
+    </div>
+
+    <div id="errorMsg" class="error" style="display:none;"></div>
+</div>
+
+<script>
+const EXAMPLES = {
+    aami: `Supplier: AAMI
+CUST P/N: SOP-16L-300mil
+P/N: SOP16L-300-01
+DESC: 16L SOP 300mil Leadframe
+Lot No: 20240315-01
+Qty: 7.2K
+MFG DATE: 2024-03-15
+EXP DATE: 2025-03-15`,
+
+    fusheng: `生产厂家: FUSHENG
+品名: 引线框架
+规格: QFP-128L
+批号: FS20240101
+数量: 5K
+生产日期: 2024-01-01
+有效期至: 2025-01-01`,
+
+    huayang: `天水华洋电子科技股份有限公司
+Name: LF-SOP16
+Type: SOP16
+Spec: 300mil
+Lot No.: HN20240201
+Q'ty: 10KPC
+MFG DATE: 2024-02-01
+EXP DATE: 2025-02-01`,
+
+    no_keyword: `AAMI
+ITEM: QFP-100L Leadframe
+P/N: QFP100-500-02
+DESC: QFP 100L 500mil
+Lot No: 20240401-02
+Qty: 3K
+PLATED DATE: 2024-04-01
+VALID DATE: 2025-04-01`
+};
+
+function loadExample(name) {
+    document.getElementById('ocrText').value = EXAMPLES[name];
+}
+
+function setCell(id, value) {
+    const td = document.getElementById(id);
+    td.textContent = value || '(空)';
+    td.className = value ? '' : 'empty';
+}
+
+function clearAll() {
+    document.getElementById('ocrText').value = '';
+    document.getElementById('resultPanel').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'none';
+    document.getElementById('aamiNote').style.display = 'none';
+}
+
+async function testParse() {
+    const text = document.getElementById('ocrText').value.trim();
+    if (!text) return;
+
+    const formData = new FormData();
+    const blob = new Blob([text], { type: 'text/plain' });
+    formData.append('text', blob);
+
+    try {
+        const resp = await fetch('/api/test-ocr-parse', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+            document.getElementById('errorMsg').textContent = data.error;
+            document.getElementById('errorMsg').style.display = 'block';
+            document.getElementById('resultPanel').style.display = 'none';
+            return;
+        }
+
+        document.getElementById('errorMsg').style.display = 'none';
+        document.getElementById('resultPanel').style.display = 'block';
+
+        setCell('r_manufacturer', data.manufacturer);
+        setCell('r_spec', data.spec);
+        setCell('r_batch_no', data.batch_no);
+        setCell('r_quantity', data.quantity);
+        setCell('r_production_date', data.production_date);
+        setCell('r_expiry_date', data.expiry_date);
+
+        const aamiNote = document.getElementById('aamiNote');
+        if (data.manufacturer === 'AAMI' && data.aami_rule) {
+            aamiNote.style.display = 'block';
+            document.getElementById('aamiRule').textContent = '规格提取路径: ' + data.aami_rule;
+        } else {
+            aamiNote.style.display = 'none';
+        }
+    } catch (e) {
+        document.getElementById('errorMsg').textContent = '请求失败: ' + e.message;
+        document.getElementById('errorMsg').style.display = 'block';
+    }
+}
+</script>
+</body>
+</html>
