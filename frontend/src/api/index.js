@@ -47,6 +47,11 @@ export async function getAuthMe() {
   return data
 }
 
+export async function passwordLogin(password) {
+  const { data } = await api.post('/auth/login', { password })
+  return data
+}
+
 export async function getJsapiConfig(url) {
   const { data } = await api.get('/auth/wecom/jsapi-config', { params: { url } })
   return data

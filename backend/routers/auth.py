@@ -1,5 +1,7 @@
 import os
 import urllib.parse
+import jwt
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
@@ -12,6 +14,8 @@ from auth_service import (
     get_user_info,
     get_user_detail,
     generate_jsapi_signature,
+    JWT_SECRET,
+    JWT_ALGORITHM,
     WECORP_ID,
     WECORP_AGENT_ID,
 )
@@ -19,6 +23,7 @@ from auth_service import (
 router = APIRouter()
 
 AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "false").lower() == "true"
+APP_PASSWORD = os.getenv("APP_PASSWORD", "")
 
 
 def get_auth_url(redirect_uri: str) -> str:
@@ -57,6 +62,29 @@ def get_current_user(request: Request) -> dict:
 
 class LoginRequest(BaseModel):
     code: str
+
+
+class PasswordLoginRequest(BaseModel):
+    password: str
+
+
+@router.post("/auth/login")
+def password_login(req: PasswordLoginRequest):
+    """密码登录：验证共享密码，签发 JWT（30 天有效）"""
+    if not APP_PASSWORD:
+        raise HTTPException(400, "未配置登录密码，请设置 APP_PASSWORD 环境变量")
+    if req.password != APP_PASSWORD:
+        raise HTTPException(401, "密码错误")
+    token = create_jwt("user", "用户")
+    # 密码登录签发 30 天有效的 JWT
+    payload = {
+        "user_id": "user",
+        "name": "用户",
+        "exp": datetime.now(timezone.utc) + timedelta(days=30),
+        "iat": datetime.now(timezone.utc),
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return {"token": token, "user_id": "user", "name": "用户"}
 
 
 @router.get("/auth/wecom/url")

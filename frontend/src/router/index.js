@@ -7,9 +7,11 @@ import StockOut from '../views/StockOut.vue'
 import InventoryList from '../views/InventoryList.vue'
 import InventoryDetail from '../views/InventoryDetail.vue'
 import AuditLogs from '../views/AuditLogs.vue'
+import Login from '../views/Login.vue'
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
+  { path: '/login', name: 'Login', component: Login, meta: { public: true } },
   { path: '/camera', name: 'Camera', component: Camera },
   { path: '/camera-out', name: 'CameraOut', component: CameraOut },
   { path: '/stock-in', name: 'StockIn', component: StockIn },
@@ -27,6 +29,7 @@ const router = createRouter({
 // 企微是否启用，启动时自动从后端配置接口获取
 let wecomEnabled = false
 let authRequired = false
+let passwordLoginEnabled = false
 let configLoaded = false
 
 // 从后端获取企微配置，判断是否启用 OAuth
@@ -37,6 +40,7 @@ async function loadConfig() {
     const data = await res.json()
     wecomEnabled = !!data.wecom_configured
     authRequired = !!data.auth_required
+    passwordLoginEnabled = !!data.password_login
   } catch (e) {
     console.warn('[router] 获取后端配置失败:', e)
   }
@@ -97,22 +101,27 @@ router.beforeEach(async (to) => {
   }
 
   // 3. 需要认证但未登录
-  if (wecomEnabled && authRequired && !localStorage.getItem('token')) {
-    if (isWecomBrowser()) {
-      // 企微内：跳转 OAuth 授权
-      try {
-        const { getWecomAuthUrl } = await import('../api')
-        const res = await getWecomAuthUrl(to.fullPath)
-        window.location.href = res.url
-        return false
-      } catch (e) {
-        console.error('获取授权链接失败:', e)
-      }
-    } else {
-      // 非企微浏览器：提示用户
-      const confirmed = confirm('请在企业微信中打开此应用。\n\n点击"确定"了解如何操作，点击"取消"继续浏览（部分功能受限）。')
-      if (confirmed) {
-        alert('请打开企业微信 → 工作台 → 找到"库存管理"应用点击进入。')
+  if (!localStorage.getItem('token')) {
+    // 密码登录模式：跳转登录页
+    if (passwordLoginEnabled && !to.meta?.public) {
+      return { name: 'Login' }
+    }
+    // 企微 OAuth 模式
+    if (wecomEnabled && authRequired) {
+      if (isWecomBrowser()) {
+        try {
+          const { getWecomAuthUrl } = await import('../api')
+          const res = await getWecomAuthUrl(to.fullPath)
+          window.location.href = res.url
+          return false
+        } catch (e) {
+          console.error('获取授权链接失败:', e)
+        }
+      } else {
+        const confirmed = confirm('请在企业微信中打开此应用。\n\n点击"确定"了解如何操作，点击"取消"继续浏览（部分功能受限）。')
+        if (confirmed) {
+          alert('请打开企业微信 → 工作台 → 找到"库存管理"应用点击进入。')
+        }
       }
     }
   }
