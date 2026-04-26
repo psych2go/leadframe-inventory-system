@@ -322,7 +322,8 @@ def recognize_image(image_path: str) -> dict:
             "prettifyMarkdown": True,
         }
 
-        with httpx.Client(timeout=60) as client:
+        # 连接超时 10 秒，读取超时 120 秒（PaddleOCR 冷启动可能较慢）
+        with httpx.Client(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)) as client:
             response = client.post(API_URL, json=payload, headers=headers)
 
         if response.status_code != 200:

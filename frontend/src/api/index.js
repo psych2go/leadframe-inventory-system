@@ -62,7 +62,7 @@ export async function getJsapiConfig(url) {
 export async function ocrRecognize(file) {
   const formData = new FormData()
   formData.append('file', file)
-  const { data } = await api.post('/ocr', formData)
+  const { data } = await api.post('/ocr', formData, { timeout: 150000 })
   return data
 }
 
