@@ -34,7 +34,7 @@
 | OCR | PaddleOCR-VL-1.5 云端 API |
 | 数据库 | SQLite（WAL 模式） |
 | 部署 | PM2 + Nginx（生产），Docker Compose（备选） |
-| 认证 | JWT + 企业微信 OAuth |
+| 认证 | JWT + 密码登录 / 企业微信 OAuth |
 
 ## 架构
 
@@ -139,20 +139,17 @@ backend/venv/bin/pip install -r backend/requirements.txt
 
 #### 4. 配置环境变量
 
-**项目根目录 `.env`**（企微 + JWT 配置）：
+**项目根目录 `.env`**（认证 + JWT 配置）：
 
 ```bash
 cat > /opt/leadframe-inventory/.env << 'EOF'
-WECORP_ID=ww1234567890
-WECORP_SECRET=your-secret
-WECORP_AGENT_ID=1000002
-APP_BASE_URL=https://你的域名/inventory
 JWT_SECRET=随机安全字符串
-AUTH_REQUIRED=true
+APP_PASSWORD=你的登录密码
 EOF
 ```
 
-注意 `APP_BASE_URL` 末尾带 `/inventory`，OAuth 回调依赖此路径。
+- `APP_PASSWORD`：设置后启用密码登录保护，访问页面需输入密码（30 天内免登录）
+- 企微 OAuth 配置（可选）：`WECORP_ID`、`WECORP_SECRET`、`WECORP_AGENT_ID`、`APP_BASE_URL`、`AUTH_REQUIRED=true`
 
 **`backend/.env`**（OCR 凭据，已 gitignore）：
 
@@ -267,12 +264,8 @@ cd ..
 项目根目录 `.env`：
 
 ```env
-WECORP_ID=ww1234567890
-WECORP_SECRET=your-secret
-WECORP_AGENT_ID=1000002
-APP_BASE_URL=https://inv.example.com
 JWT_SECRET=随机安全字符串
-AUTH_REQUIRED=true
+APP_PASSWORD=你的登录密码
 ```
 
 `backend/.env`（OCR 凭据）：
@@ -329,6 +322,7 @@ npm run dev
 - 上传图片路径做了路径遍历防护
 - 出库操作使用数据库锁（BEGIN IMMEDIATE）防止并发超额
 - JWT Secret 必须配置，未设置时无法签发 Token
+- 支持 `APP_PASSWORD` 环境变量启用密码登录保护（30 天免登录）
 - 敏感凭据（`.env`、`backend/.env`、`certs/`）已加入 `.gitignore`
 - 所有数据变更自动记录审计日志（操作人、时间、IP、变更内容）
 - 支持 GitHub Actions 自动部署（`.github/workflows/deploy.yml`）

@@ -31,7 +31,7 @@
 | `backend/routers/ocr.py` | POST /api/ocr，接收图片上传（限制 20MB），保存文件后调用 OCR |
 | `backend/routers/inventory.py` | 库存 CRUD、入库、出库、记录查询、审计日志查询、上传图片静态服务、Excel 导出 |
 | `backend/auth_service.py` | JWT 签发/验证，企微 API 调用（access_token + jsapi_ticket + 用户身份），缓存 |
-| `backend/routers/auth.py` | 企微 OAuth 完整流程：授权链接、code→JWT 回调、JS-SDK 签名配置 |
+| `backend/routers/auth.py` | 企微 OAuth + 密码登录：授权链接、code→JWT 回调、密码验证登录、JS-SDK 签名配置 |
 | `frontend/src/api/index.js` | Axios 实例（baseURL = BASE_URL + 'api'，即 `/inventory/api`），所有后端接口封装 |
 | `frontend/src/utils/wxsdk.js` | 企微 JS-SDK 封装：初始化 wx.config、chooseImage（支持拍照+相册）、getLocalImgData，非企微降级，上传前压缩图片 |
 | `frontend/src/views/Camera.vue` | 拍照/选图（企微 JS-SDK 或 HTML input）→ OCR → 展示可编辑识别结果 → 确认入库 |
@@ -42,6 +42,7 @@
 | `frontend/src/views/AuditLogs.vue` | 操作记录日志列表，按操作类型筛选 |
 | `frontend/src/views/Home.vue` | 首页仪表盘，统计+快捷入口（4 宫格）+库存预警，导航栏右上角「操作记录」入口 |
 | `frontend/src/views/StockIn.vue` | 手动入库表单 |
+| `frontend/src/views/Login.vue` | 密码登录页（设置 APP_PASSWORD 后生效） |
 | `frontend/src/router/index.js` | Vue Router，history 模式，base `/inventory/`，8 个路由 |
 | `frontend/vite.config.js` | Vite 配置，base: `/inventory/`，开发代理 `/api` → `localhost:8000` |
 | `ecosystem.config.js` | PM2 进程管理配置（生产部署用） |
@@ -92,15 +93,13 @@ OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_AP
 | `APP_BASE_URL` | 应用外网地址（含路径前缀） | `https://inv.example.com/inventory` |
 | `JWT_SECRET` | JWT 签名密钥（必须设置） | 随机字符串 |
 | `AUTH_REQUIRED` | 是否强制登录 | `true` / `false` |
+| `APP_PASSWORD` | 共享登录密码（设置后启用密码登录模式） | 自定义密码 |
 
-注意 `APP_BASE_URL` 需包含 `/inventory` 路径前缀，OAuth 回调 URL 为 `{APP_BASE_URL}/api/auth/wecom/callback`，经 Nginx 映射后到达后端。
+系统支持两种认证模式，按配置自动选择：
+- **密码登录**：设置 `APP_PASSWORD` 后启用。访问页面时跳转登录页，输入共享密码后签发 JWT（30 天有效）。适合小团队使用。
+- **企微 OAuth**：配置 `WECORP_ID` + `WECORP_SECRET` + `AUTH_REQUIRED=true` 后启用。企微内自动授权，非企微浏览器提示在企微中打开。
 
-认证流程：
-1. 用户从企微工作台打开 H5 → 前端路由守卫检测无 token
-2. 企微内：重定向到企微授权 URL → 回调带 code → 前端用 code 换 JWT
-3. 后端签发 JWT（24 小时有效） → 前端存入 localStorage
-4. 后续请求自动带 Authorization: Bearer {token}
-5. 非企微浏览器 + AUTH_REQUIRED：提示用户在企微中打开
+两种模式可独立使用，也可同时配置（密码登录优先）。
 
 不配置企微变量时系统正常运行（无登录拦截）。`AUTH_REQUIRED=true` 时强制登录。
 
@@ -166,15 +165,17 @@ backend/venv/bin/pip install -r backend/requirements.txt
 
 **3. 配置环境变量**
 
-项目根目录 `.env`（企微 + JWT）：
+项目根目录 `.env`（认证 + JWT）：
 
 ```env
-WECORP_ID=ww1234567890
-WECORP_SECRET=your-secret
-WECORP_AGENT_ID=1000002
-APP_BASE_URL=https://你的域名/inventory
 JWT_SECRET=随机安全字符串
-AUTH_REQUIRED=true
+APP_PASSWORD=你的登录密码
+# 企微 OAuth（可选）
+# WECORP_ID=ww1234567890
+# WECORP_SECRET=your-secret
+# WECORP_AGENT_ID=1000002
+# APP_BASE_URL=https://你的域名/inventory
+# AUTH_REQUIRED=true
 ```
 
 `backend/.env`（OCR 凭据，已 gitignore）：
@@ -300,6 +301,7 @@ npm run dev
 | GET | /api/auth/wecom/url | 生成企微 OAuth 授权链接 |
 | GET | /api/auth/wecom/callback | 企微 OAuth 回调，code→JWT→重定向 |
 | POST | /api/auth/wecom/login | 前端用 code 换 JWT |
+| POST | /api/auth/login | 密码登录（验证 APP_PASSWORD，签发 30 天 JWT） |
 | GET | /api/auth/wecom/jsapi-config | JS-SDK 签名配置（?url=） |
 | GET | /api/auth/me | 获取当前登录用户信息 |
 
@@ -308,6 +310,7 @@ npm run dev
 所有路由基于 base path `/inventory/`。
 
 - `/inventory/` — Home.vue（首页仪表盘）
+- `/inventory/login` — Login.vue（密码登录页）
 - `/inventory/camera` — Camera.vue（拍照+OCR+确认入库）
 - `/inventory/camera-out` — CameraOut.vue（拍照识别+匹配+出库）
 - `/inventory/stock-in` — StockIn.vue（手动入库表单）
