@@ -62,5 +62,5 @@ def config():
     return {
         "wecom_configured": auth_service.is_wecom_configured(),
         "auth_required": os.getenv("AUTH_REQUIRED", "false").lower() == "true",
-        "password_login": bool(os.getenv("APP_PASSWORD", "")),
+        "password_login": bool(os.getenv("LOGIN_PASSWORD", "")),
     }

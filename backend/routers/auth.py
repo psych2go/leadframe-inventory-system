@@ -23,7 +23,7 @@ from auth_service import (
 router = APIRouter()
 
 AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "false").lower() == "true"
-APP_PASSWORD = os.getenv("APP_PASSWORD", "")
+LOGIN_PASSWORD = os.getenv("LOGIN_PASSWORD", "")
 
 
 def get_auth_url(redirect_uri: str) -> str:
@@ -71,9 +71,9 @@ class PasswordLoginRequest(BaseModel):
 @router.post("/auth/login")
 def password_login(req: PasswordLoginRequest):
     """密码登录：验证共享密码，签发 JWT（30 天有效）"""
-    if not APP_PASSWORD:
-        raise HTTPException(400, "未配置登录密码，请设置 APP_PASSWORD 环境变量")
-    if req.password != APP_PASSWORD:
+    if not LOGIN_PASSWORD:
+        raise HTTPException(400, "未配置登录密码，请设置 LOGIN_PASSWORD 环境变量")
+    if req.password != LOGIN_PASSWORD:
         raise HTTPException(401, "密码错误")
     token = create_jwt("user", "用户")
     # 密码登录签发 30 天有效的 JWT

@@ -42,7 +42,7 @@
 | `frontend/src/views/AuditLogs.vue` | 操作记录日志列表，按操作类型筛选 |
 | `frontend/src/views/Home.vue` | 首页仪表盘，统计+快捷入口（4 宫格）+库存预警，导航栏右上角「操作记录」入口 |
 | `frontend/src/views/StockIn.vue` | 手动入库表单 |
-| `frontend/src/views/Login.vue` | 密码登录页（设置 APP_PASSWORD 后生效） |
+| `frontend/src/views/Login.vue` | 密码登录页（设置 LOGIN_PASSWORD 后生效） |
 | `frontend/src/router/index.js` | Vue Router，history 模式，base `/inventory/`，8 个路由 |
 | `frontend/vite.config.js` | Vite 配置，base: `/inventory/`，开发代理 `/api` → `localhost:8000` |
 | `ecosystem.config.js` | PM2 进程管理配置（生产部署用） |
@@ -93,10 +93,10 @@ OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_AP
 | `APP_BASE_URL` | 应用外网地址（含路径前缀） | `https://inv.example.com/inventory` |
 | `JWT_SECRET` | JWT 签名密钥（必须设置） | 随机字符串 |
 | `AUTH_REQUIRED` | 是否强制登录 | `true` / `false` |
-| `APP_PASSWORD` | 共享登录密码（设置后启用密码登录模式） | 自定义密码 |
+| `LOGIN_PASSWORD` | 共享登录密码（设置后启用密码登录模式） | 自定义密码 |
 
 系统支持两种认证模式，按配置自动选择：
-- **密码登录**：设置 `APP_PASSWORD` 后启用。访问页面时跳转登录页，输入共享密码后签发 JWT（30 天有效）。适合小团队使用。
+- **密码登录**：设置 `LOGIN_PASSWORD` 后启用。访问页面时跳转登录页，输入共享密码后签发 JWT（30 天有效）。适合小团队使用。
 - **企微 OAuth**：配置 `WECORP_ID` + `WECORP_SECRET` + `AUTH_REQUIRED=true` 后启用。企微内自动授权，非企微浏览器提示在企微中打开。
 
 两种模式可独立使用，也可同时配置（密码登录优先）。
@@ -169,7 +169,7 @@ backend/venv/bin/pip install -r backend/requirements.txt
 
 ```env
 JWT_SECRET=随机安全字符串
-APP_PASSWORD=你的登录密码
+LOGIN_PASSWORD=你的登录密码
 # 企微 OAuth（可选）
 # WECORP_ID=ww1234567890
 # WECORP_SECRET=your-secret
@@ -301,7 +301,7 @@ npm run dev
 | GET | /api/auth/wecom/url | 生成企微 OAuth 授权链接 |
 | GET | /api/auth/wecom/callback | 企微 OAuth 回调，code→JWT→重定向 |
 | POST | /api/auth/wecom/login | 前端用 code 换 JWT |
-| POST | /api/auth/login | 密码登录（验证 APP_PASSWORD，签发 30 天 JWT） |
+| POST | /api/auth/login | 密码登录（验证 LOGIN_PASSWORD，签发 30 天 JWT） |
 | GET | /api/auth/wecom/jsapi-config | JS-SDK 签名配置（?url=） |
 | GET | /api/auth/me | 获取当前登录用户信息 |
 

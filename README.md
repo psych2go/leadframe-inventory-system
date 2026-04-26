@@ -144,11 +144,11 @@ backend/venv/bin/pip install -r backend/requirements.txt
 ```bash
 cat > /opt/leadframe-inventory/.env << 'EOF'
 JWT_SECRET=随机安全字符串
-APP_PASSWORD=你的登录密码
+LOGIN_PASSWORD=你的登录密码
 EOF
 ```
 
-- `APP_PASSWORD`：设置后启用密码登录保护，访问页面需输入密码（30 天内免登录）
+- `LOGIN_PASSWORD`：设置后启用密码登录保护，访问页面需输入密码（30 天内免登录）
 - 企微 OAuth 配置（可选）：`WECORP_ID`、`WECORP_SECRET`、`WECORP_AGENT_ID`、`APP_BASE_URL`、`AUTH_REQUIRED=true`
 
 **`backend/.env`**（OCR 凭据，已 gitignore）：
@@ -265,7 +265,7 @@ cd ..
 
 ```env
 JWT_SECRET=随机安全字符串
-APP_PASSWORD=你的登录密码
+LOGIN_PASSWORD=你的登录密码
 ```
 
 `backend/.env`（OCR 凭据）：
@@ -322,7 +322,7 @@ npm run dev
 - 上传图片路径做了路径遍历防护
 - 出库操作使用数据库锁（BEGIN IMMEDIATE）防止并发超额
 - JWT Secret 必须配置，未设置时无法签发 Token
-- 支持 `APP_PASSWORD` 环境变量启用密码登录保护（30 天免登录）
+- 支持 `LOGIN_PASSWORD` 环境变量启用密码登录保护（30 天免登录）
 - 敏感凭据（`.env`、`backend/.env`、`certs/`）已加入 `.gitignore`
 - 所有数据变更自动记录审计日志（操作人、时间、IP、变更内容）
 - 支持 GitHub Actions 自动部署（`.github/workflows/deploy.yml`）
