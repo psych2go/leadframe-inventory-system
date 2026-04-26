@@ -40,6 +40,7 @@
 import { ref } from 'vue'
 import { showToast, showSuccessToast, showDialog } from 'vant'
 import { getInventoryList, deleteInventory, exportInventory } from '../api'
+import { isLowStock } from '../utils/qty'
 
 const LOW_STOCK_THRESHOLD = 2  // 单位: K（2K = 2000 只）
 
@@ -50,22 +51,6 @@ const finished = ref(false)
 const refreshing = ref(false)
 const exporting = ref(false)
 let page = 1
-
-function isLowStock(item) {
-  const num = parseQty(item.quantity)
-  return num < LOW_STOCK_THRESHOLD
-}
-
-function parseQty(val) {
-  if (typeof val === 'number') return val
-  const s = String(val).trim()
-  const kMatch = s.match(/([\d.]+)\s*[Kk]/)
-  if (kMatch) return parseFloat(kMatch[1]) * 1000
-  const mMatch = s.match(/([\d.]+)\s*[Mm]/)
-  if (mMatch) return parseFloat(mMatch[1]) * 1000000
-  const numMatch = s.match(/([\d.]+)/)
-  return numMatch ? parseFloat(numMatch[1]) : 0
-}
 
 async function loadData() {
   page = 1

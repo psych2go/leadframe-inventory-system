@@ -180,6 +180,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { getInventoryList, getStockLogs, getInventoryAlerts } from '../api'
+import { isLowStock } from '../utils/qty'
 
 const LOW_STOCK_THRESHOLD = 2  // 单位: K（2K = 2000 只）
 
@@ -191,26 +192,10 @@ const threshold = ref(2000)
 const alertExpanded = ref(true)
 const loading = ref(true)
 
-function isLowStock(item) {
-  const num = parseQty(item.quantity)
-  return num < LOW_STOCK_THRESHOLD
-}
-
-function parseQty(val) {
-  if (typeof val === 'number') return val
-  const s = String(val).trim()
-  const kMatch = s.match(/([\d.]+)\s*[Kk]/)
-  if (kMatch) return parseFloat(kMatch[1]) * 1000
-  const mMatch = s.match(/([\d.]+)\s*[Mm]/)
-  if (mMatch) return parseFloat(mMatch[1]) * 1000000
-  const numMatch = s.match(/([\d.]+)/)
-  return numMatch ? parseFloat(numMatch[1]) : 0
-}
-
 onMounted(async () => {
   try {
     loading.value = true
-    const data = await getInventoryList('', 1, 100)
+    const data = await getInventoryList('', 1, 10)
     recentItems.value = data.items
   } catch (e) {}
   finally {

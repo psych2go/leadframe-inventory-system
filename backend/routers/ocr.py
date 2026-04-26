@@ -35,5 +35,11 @@ async def ocr_recognize(file: UploadFile = File(...)):
         result["image_path"] = filename
         return result
     except Exception as e:
-        logger.error(f"OCR failed: {e}")
+        # OCR 失败时清理已上传的文件
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
+        logger.error("OCR failed: %s", e)
         return {"error": str(e)}
+

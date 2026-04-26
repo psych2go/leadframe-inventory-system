@@ -45,12 +45,16 @@ function compressImage(file) {
 
 let wxReady = false
 let wxConfigured = false
+let wxInitAttempts = 0
+const WX_MAX_RETRIES = 3
 
 async function initWxConfig() {
   if (wxConfigured) return
+  if (wxInitAttempts >= WX_MAX_RETRIES) return
   if (!isWecom()) return
   if (typeof wx === 'undefined') return
 
+  wxInitAttempts++
   try {
     const { getJsapiConfig } = await import('../api')
     const url = window.location.href.split('#')[0]
@@ -76,19 +80,18 @@ async function initWxConfig() {
         reject(err)
       })
     })
+    wxConfigured = true
   } catch (e) {
     console.warn('[wxsdk] 初始化失败:', e)
-  } finally {
-    wxConfigured = true
   }
 }
 
-function chooseImageFromWx() {
+function chooseImageFromWx(sourceType) {
   return new Promise((resolve, reject) => {
     wx.chooseImage({
       count: 1,
       sizeType: ['compressed'],
-      sourceType: ['camera', 'album'],
+      sourceType: [sourceType],
       success: (res) => {
         const localId = res.localIds[0]
         wx.getLocalImgData({
@@ -119,19 +122,19 @@ function chooseImageFromWx() {
 }
 
 /**
- * 统一拍照入口
- * 企微环境：wx.chooseImage
- * 非企微环境：触发隐藏的 input[type=file] 并返回 File
+ * 获取图片（指定来源）
+ * @param {'camera'|'album'} source - camera 拍照，album 从相册选择
  */
-export async function getPhoto() {
+export async function getPhoto(source = 'camera') {
   let file
   if (isWecom() && wxReady) {
-    file = await chooseImageFromWx()
+    file = await chooseImageFromWx(source)
   } else {
     file = await new Promise((resolve, reject) => {
       const input = document.createElement('input')
       input.type = 'file'
       input.accept = 'image/*'
+      if (source === 'camera') input.capture = 'camera'
       input.style.display = 'none'
       document.body.appendChild(input)
       input.onchange = () => {

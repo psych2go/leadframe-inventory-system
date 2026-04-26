@@ -45,19 +45,9 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { getInventoryList, getInventory, stockOut } from '../api'
+import { parseQtyToK } from '../utils/qty'
 
 const route = useRoute()
-
-function parseQty(val) {
-  if (typeof val === 'number') return val
-  const s = String(val).trim()
-  const kMatch = s.match(/([\d.]+)\s*[Kk]/)
-  if (kMatch) return parseFloat(kMatch[1]) * 1000
-  const mMatch = s.match(/([\d.]+)\s*[Mm]/)
-  if (mMatch) return parseFloat(mMatch[1]) * 1000000
-  const numMatch = s.match(/([\d.]+)/)
-  return numMatch ? parseFloat(numMatch[1]) : 0
-}
 
 const searchText = ref('')
 const searchResults = ref([])
@@ -91,7 +81,7 @@ function selectItem(item) {
 async function doStockOut() {
   const qty = Number(outQuantity.value)
   if (!qty || qty <= 0) return showToast('请输入有效出库数量')
-  const currentQty = parseQty(selectedItem.value.quantity)
+  const currentQty = parseQtyToK(selectedItem.value.quantity)
   if (qty > currentQty) return showToast('出库数量不能超过库存')
   submitting.value = true
   try {

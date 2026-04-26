@@ -31,20 +31,25 @@ let wecomEnabled = false
 let authRequired = false
 let passwordLoginEnabled = false
 let configLoaded = false
+let configPromise = null
 
 // 从后端获取企微配置，判断是否启用 OAuth
 async function loadConfig() {
   if (configLoaded) return
-  try {
-    const res = await fetch(import.meta.env.BASE_URL + 'api/config')
-    const data = await res.json()
-    wecomEnabled = !!data.wecom_configured
-    authRequired = !!data.auth_required
-    passwordLoginEnabled = !!data.password_login
-  } catch (e) {
-    console.warn('[router] 获取后端配置失败:', e)
-  }
-  configLoaded = true
+  if (configPromise) return configPromise
+  configPromise = (async () => {
+    try {
+      const res = await fetch(import.meta.env.BASE_URL + 'api/config')
+      const data = await res.json()
+      wecomEnabled = !!data.wecom_configured
+      authRequired = !!data.auth_required
+      passwordLoginEnabled = !!data.password_login
+    } catch (e) {
+      console.warn('[router] 获取后端配置失败:', e)
+    }
+    configLoaded = true
+  })()
+  return configPromise
 }
 
 // 启动加载配置
@@ -58,9 +63,7 @@ function isWecomBrowser() {
 // 路由守卫
 router.beforeEach(async (to) => {
   // 确保配置已加载
-  if (!configLoaded) {
-    await new Promise(r => setTimeout(r, 200))
-  }
+  await loadConfig()
 
   const query = new URLSearchParams(window.location.search)
 

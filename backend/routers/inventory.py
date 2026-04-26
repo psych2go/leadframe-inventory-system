@@ -1,5 +1,6 @@
 import os
 import io
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
@@ -10,6 +11,19 @@ import database as db
 from routers.auth import get_current_user_optional
 
 router = APIRouter()
+
+_QTY_PATTERN = re.compile(r"^[\d.]+\s*(K|KPC|KPD|k|kpc|kpd|M|PCS|pcs|只|万)?\s*$", re.IGNORECASE)
+_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _validate_quantity(quantity: str):
+    if not _QTY_PATTERN.match(quantity.strip()):
+        raise HTTPException(400, f"数量格式无效: {quantity}")
+
+
+def _validate_date(date_str: str, field_name: str):
+    if date_str and not _DATE_PATTERN.match(date_str.strip()):
+        raise HTTPException(400, f"{field_name}格式无效，请使用 YYYY-MM-DD")
 
 
 class StockInRequest(BaseModel):
@@ -54,9 +68,11 @@ ALERT_THRESHOLD = 2  # 单位: K（2K = 2000 只）
 def get_inventory_alerts():
     """获取低库存预警列表（数量 < 2K）"""
     with db.get_db() as conn:
-        rows = conn.execute("SELECT * FROM inventory ORDER BY updated_at DESC").fetchall()
-    items = [dict(r) for r in rows if db._qty_to_num(r["quantity"]) < ALERT_THRESHOLD]
-    return {"items": items, "threshold": ALERT_THRESHOLD}
+        rows = conn.execute(
+            "SELECT * FROM inventory WHERE CAST(quantity AS REAL) < ? ORDER BY updated_at DESC",
+            (ALERT_THRESHOLD,),
+        ).fetchall()
+    return {"items": [dict(r) for r in rows], "threshold": ALERT_THRESHOLD}
 
 
 @router.get("/inventory/export")
@@ -132,22 +148,25 @@ def do_stock_in(req: StockInRequest, request: Request):
     user_id, user_name = _audit_user(request)
     if not req.quantity:
         raise HTTPException(400, "入库数量不能为空")
+    _validate_quantity(req.quantity)
     if not req.spec.strip():
         raise HTTPException(400, "规格不能为空")
-    inv_id = db.stock_in(
-        material_code=req.material_code.strip(),
-        spec=req.spec.strip(),
-        manufacturer=req.manufacturer.strip(),
-        batch_no=req.batch_no.strip(),
-        production_date=req.production_date.strip(),
-        expiry_date=req.expiry_date.strip(),
-        quantity=req.quantity,
-        note=req.note,
-        image_path=req.image_path,
-        operator=user_name,
-    )
-    # 审计：入库操作
+    _validate_date(req.production_date, "生产日期")
+    _validate_date(req.expiry_date, "有效日期")
     with db.get_db() as conn:
+        inv_id = db.stock_in(
+            material_code=req.material_code.strip(),
+            spec=req.spec.strip(),
+            manufacturer=req.manufacturer.strip(),
+            batch_no=req.batch_no.strip(),
+            production_date=req.production_date.strip(),
+            expiry_date=req.expiry_date.strip(),
+            quantity=req.quantity,
+            note=req.note,
+            image_path=req.image_path,
+            operator=user_name,
+            conn=conn,
+        )
         db.write_audit(
             conn, user_id, user_name, "stock_in", "inventory", inv_id,
             detail=f"入库 {req.quantity}K | {req.spec} | 批号:{req.batch_no}",
@@ -161,13 +180,13 @@ def do_stock_out(req: StockOutRequest, request: Request):
     user_id, user_name = _audit_user(request)
     if not req.quantity:
         raise HTTPException(400, "出库数量不能为空")
+    _validate_quantity(req.quantity)
     # 记录操作前快照
     old_item = db.inventory_get(req.inventory_id)
-    inv_id, error = db.stock_out(req.inventory_id, req.quantity, req.note, user_name)
-    if error:
-        raise HTTPException(400, error)
-    # 审计：出库操作
     with db.get_db() as conn:
+        inv_id, error = db.stock_out(req.inventory_id, req.quantity, req.note, user_name, conn=conn)
+        if error:
+            raise HTTPException(400, error)
         db.write_audit(
             conn, user_id, user_name, "stock_out", "inventory", inv_id,
             snapshot=old_item,

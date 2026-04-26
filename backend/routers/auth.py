@@ -75,7 +75,6 @@ def password_login(req: PasswordLoginRequest):
         raise HTTPException(400, "未配置登录密码，请设置 LOGIN_PASSWORD 环境变量")
     if req.password != LOGIN_PASSWORD:
         raise HTTPException(401, "密码错误")
-    token = create_jwt("user", "用户")
     # 密码登录签发 30 天有效的 JWT
     payload = {
         "user_id": "user",

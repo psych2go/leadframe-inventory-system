@@ -93,43 +93,6 @@ def _resolve_aami_spec(raw_text: str) -> str:
     return desc
 
 
-def _resolve_aami_spec_with_trace(raw_text: str):
-    """AAMI 规格提取（带追踪信息，用于测试页面）"""
-    clean_text = re.sub(r"[#|`]", " ", raw_text)
-
-    def extract(keywords):
-        for keyword in keywords:
-            pattern = rf"{re.escape(keyword)}\s*[:：]\s*(.+?)(?:\n|$)"
-            match = re.search(pattern, clean_text, re.IGNORECASE)
-            if match:
-                val = match.group(1).strip()
-                sub = re.match(r"(.+?)\s+\w+\s*[:：]", val)
-                if sub:
-                    return sub.group(1).strip()
-                return val
-            pattern = rf"{re.escape(keyword)}\s+(.+?)(?:\n|$)"
-            match = re.search(pattern, clean_text, re.IGNORECASE)
-            if match:
-                return match.group(1).strip()
-        return ""
-
-    cust_pn = extract(["CUST P/N", "CUSTOMER P/N"])
-    if cust_pn:
-        return cust_pn, "CUST P/N → " + cust_pn
-
-    pn = extract(["P/N"])
-    desc = extract(["DESC", "DESCRIPTION"])
-
-    if pn and any(kw in pn.upper() for kw in ["SOP", "QFP", "DIP", "FN"]):
-        matched_kw = next(kw for kw in ["SOP", "QFP", "DIP", "FN"] if kw in pn.upper())
-        return pn, f"P/N 含 '{matched_kw}' → " + pn
-
-    if desc:
-        return desc, "DESC → " + desc
-
-    return "", "未匹配到规格"
-
-
 def _format_k(val: float) -> str:
     """将 K 单位数值格式化，保留最多 3 位小数，不保留无意义尾零"""
     s = f"{round(val, 3):.3f}".rstrip("0")
@@ -149,8 +112,6 @@ def _normalize_qty(val: str) -> str:
     m = re.match(r"([\d.]+)\s*只", clean)
     if m:
         num = float(m.group(1))
-        if num >= 1000000:
-            return _format_k(num / 1000)
         return _format_k(num / 1000)
     # PCS: 46368 PCS → 46.368K（PCS 转 K 需除以 1000）
     m = re.match(r"([\d.]+)\s*(?:PCS|pcs)", clean, re.IGNORECASE)
@@ -337,21 +298,6 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     return result
 
 
-def _convert_quantity(val: str) -> str:
-    """将 7.2K 格式转为 7200，保持原始值兜底"""
-    val = val.strip()
-    m = re.match(r"([\d.]+)\s*[Kk]", val)
-    if m:
-        return str(int(float(m.group(1)) * 1000))
-    m = re.match(r"([\d.]+)\s*[Mm]", val)
-    if m:
-        return str(int(float(m.group(1)) * 1000000))
-    m = re.match(r"([\d]+)", val)
-    if m:
-        return m.group(1)
-    return val
-
-
 def recognize_image(image_path: str) -> dict:
     """调用 PaddleOCR-VL-1.5 云端 API 对图片执行 OCR 识别"""
     if not TOKEN:
@@ -380,12 +326,12 @@ def recognize_image(image_path: str) -> dict:
             response = client.post(API_URL, json=payload, headers=headers)
 
         if response.status_code != 200:
-            logger.error(f"PaddleOCR API error: {response.status_code} {response.text}")
+            logger.error("PaddleOCR API error: %s %s", response.status_code, response.text)
             return {"error": f"OCR 服务返回错误: {response.status_code}"}
 
         resp_json = response.json()
         if resp_json.get("errorCode", -1) != 0:
-            logger.error(f"PaddleOCR API error: {resp_json.get('errorMsg', 'unknown')}")
+            logger.error("PaddleOCR API error: %s", resp_json.get('errorMsg', 'unknown'))
             return {"error": f"OCR 服务错误: {resp_json.get('errorMsg', '未知错误')}"}
 
         result_data = resp_json["result"]
@@ -420,5 +366,5 @@ def recognize_image(image_path: str) -> dict:
         logger.error("PaddleOCR API timeout")
         return {"error": "OCR 识别超时，请重试"}
     except Exception as e:
-        logger.error(f"OCR recognition failed: {e}")
+        logger.error("OCR recognition failed: %s", e)
         return {"error": str(e)}

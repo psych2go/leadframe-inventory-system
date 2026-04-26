@@ -3,12 +3,28 @@
     <van-nav-bar title="拍照入库" left-arrow @click-left="$router.back()" />
 
     <div class="upload-area">
-      <div class="upload-card" @click="handleCapture">
-        <div class="upload-icon-wrap">
-          <van-icon name="photograph" size="40" color="#fff" />
+      <div class="upload-cards">
+        <div class="upload-card camera-card" @click="handleCapture('camera')">
+          <div class="upload-icon-wrap">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </div>
+          <div class="upload-text">拍照</div>
+          <div class="upload-hint">打开相机拍摄</div>
         </div>
-        <div class="upload-text">拍照 / 选择图片</div>
-        <div class="upload-hint">支持 jpg、png 格式</div>
+        <div class="upload-card album-card" @click="handleCapture('album')">
+          <div class="upload-icon-wrap">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <div class="upload-text">选择图片</div>
+          <div class="upload-hint">从相册上传</div>
+        </div>
       </div>
     </div>
 
@@ -91,9 +107,9 @@ const form = reactive({
 const materialCodeAutoFilled = ref(false)
 const materialCodeHint = ref('')
 
-async function handleCapture() {
+async function handleCapture(source = 'camera') {
   try {
-    const file = await getPhoto()
+    const file = await getPhoto(source)
     await onFileRead({ file })
   } catch (e) {
     if (e.message !== '未选择图片') {
@@ -221,25 +237,38 @@ async function submitStockIn() {
   margin-top: 6px;
 }
 .upload-area { padding: 32px 16px; text-align: center; }
+.upload-cards {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
 .upload-card {
-  display: inline-flex;
+  flex: 1;
+  max-width: 170px;
+  display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 28px 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  gap: 8px;
+  padding: 24px 16px;
   border-radius: 16px;
   color: #fff;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
 }
 .upload-card:active {
   transform: scale(0.97);
 }
+.camera-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
+}
+.album-card {
+  background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%);
+  box-shadow: 0 4px 16px rgba(54, 209, 220, 0.35);
+}
 .upload-icon-wrap {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   display: flex;
@@ -247,12 +276,11 @@ async function submitStockIn() {
   justify-content: center;
 }
 .upload-text {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: 1px;
 }
 .upload-hint {
-  font-size: 12px;
+  font-size: 11px;
   opacity: 0.8;
 }
 .loading { padding: 40px; text-align: center; }

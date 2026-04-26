@@ -6,12 +6,17 @@ from contextlib import contextmanager
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
+_pragma_set = False
+
 
 def get_connection():
+    global _pragma_set
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    if not _pragma_set:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        _pragma_set = True
     return conn
 
 
@@ -119,35 +124,33 @@ def init_db():
         """)
 
 
+def _build_search_conditions(search: str = None):
+    """构建搜索 WHERE 条件和参数"""
+    where = ""
+    params = []
+    if search:
+        where = " AND (material_code LIKE ? OR spec LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"
+        term = f"%{search}%"
+        params = [term, term, term, term]
+    return where, params
+
+
 def inventory_list(search: str = None, page: int = 1, size: int = 20):
     with get_db() as conn:
-        query = "SELECT * FROM inventory WHERE 1=1"
-        params = []
-        if search:
-            query += " AND (material_code LIKE ? OR spec LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"
-            term = f"%{search}%"
-            params.extend([term, term, term, term])
-        query += " ORDER BY updated_at DESC LIMIT ? OFFSET ?"
-        params.extend([size, (page - 1) * size])
-        rows = conn.execute(query, params).fetchall()
+        where, params = _build_search_conditions(search)
 
-        count_query = "SELECT COUNT(*) as total FROM inventory WHERE 1=1"
-        count_params = []
-        if search:
-            count_query += " AND (material_code LIKE ? OR spec LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"
-            term = f"%{search}%"
-            count_params.extend([term, term, term, term])
-        total = conn.execute(count_query, count_params).fetchone()["total"]
+        rows = conn.execute(
+            f"SELECT * FROM inventory WHERE 1=1{where} ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+            params + [size, (page - 1) * size],
+        ).fetchall()
 
-        # 计算总数量（将 K/M 值转为数字求和）
-        sum_query = "SELECT quantity FROM inventory WHERE 1=1"
-        sum_params = []
-        if search:
-            sum_query += " AND (material_code LIKE ? OR spec LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"
-            term = f"%{search}%"
-            sum_params.extend([term, term, term, term])
-        qty_rows = conn.execute(sum_query, sum_params).fetchall()
-        total_quantity = sum(_qty_to_num(r["quantity"]) for r in qty_rows)
+        total = conn.execute(
+            f"SELECT COUNT(*) as total FROM inventory WHERE 1=1{where}", params
+        ).fetchone()["total"]
+
+        total_quantity = conn.execute(
+            f"SELECT COALESCE(SUM(CAST(quantity AS REAL)), 0) as total_qty FROM inventory WHERE 1=1{where}", params
+        ).fetchone()["total_qty"]
 
         return [dict(r) for r in rows], total, total_quantity
 
@@ -189,8 +192,11 @@ def _num_to_qty(val) -> str:
 def stock_in(material_code: str, spec: str, manufacturer: str, batch_no: str,
              production_date: str, expiry_date: str,
              quantity: str, note: str = None,
-             image_path: str = None, operator: str = None):
-    with get_db() as conn:
+             image_path: str = None, operator: str = None, conn=None):
+    own_conn = conn is None
+    if own_conn:
+        conn = get_connection()
+    try:
         existing = conn.execute(
             "SELECT id, quantity FROM inventory WHERE material_code = ? AND batch_no = ?",
             (material_code, batch_no)
@@ -219,7 +225,12 @@ def stock_in(material_code: str, spec: str, manufacturer: str, batch_no: str,
             "INSERT INTO stock_log (inventory_id, type, quantity, operator) VALUES (?, 'in', ?, ?)",
             (inv_id, quantity, operator)
         )
+        if own_conn:
+            conn.commit()
         return inv_id
+    finally:
+        if own_conn:
+            conn.close()
 
 
 def get_material_code_suggestions(spec: str) -> list:
@@ -234,8 +245,11 @@ def get_material_code_suggestions(spec: str) -> list:
         return [r["material_code"] for r in rows]
 
 
-def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str = None):
-    with get_db() as conn:
+def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str = None, conn=None):
+    own_conn = conn is None
+    if own_conn:
+        conn = get_connection()
+    try:
         conn.execute("BEGIN IMMEDIATE")
         item = conn.execute("SELECT quantity FROM inventory WHERE id = ?", (inventory_id,)).fetchone()
         if not item:
@@ -254,7 +268,12 @@ def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str 
             "INSERT INTO stock_log (inventory_id, type, quantity, note, operator) VALUES (?, 'out', ?, ?, ?)",
             (inventory_id, quantity, note, operator)
         )
+        if own_conn:
+            conn.commit()
         return inventory_id, None
+    finally:
+        if own_conn:
+            conn.close()
 
 
 def stock_logs(inventory_id: int = None, page: int = 1, size: int = 20):
@@ -274,10 +293,18 @@ def stock_logs(inventory_id: int = None, page: int = 1, size: int = 20):
         return [dict(r) for r in rows]
 
 
-def inventory_delete(item_id: int):
-    with get_db() as conn:
+def inventory_delete(item_id: int, conn=None):
+    own_conn = conn is None
+    if own_conn:
+        conn = get_connection()
+    try:
         conn.execute("DELETE FROM stock_log WHERE inventory_id = ?", (item_id,))
         conn.execute("DELETE FROM inventory WHERE id = ?", (item_id,))
+        if own_conn:
+            conn.commit()
+    finally:
+        if own_conn:
+            conn.close()
 
 
 def write_audit(conn, user_id: str, user_name: str, action: str,

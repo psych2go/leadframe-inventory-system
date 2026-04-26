@@ -3,8 +3,9 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # 加载项目根目录 .env 文件（PM2 env_file 不可靠时作为兜底）
 _env_file = Path(__file__).parent.parent / ".env"
@@ -17,6 +18,7 @@ if _env_file.exists():
 
 from database import init_db
 from routers import ocr, inventory, auth
+import auth_service
 
 # 日志同时输出到控制台和文件
 log_dir = os.path.join(os.path.dirname(__file__), "logs")
@@ -43,6 +45,12 @@ async def lifespan(app):
 
 app = FastAPI(title="引线框架库存管理系统", version="1.0.0", lifespan=lifespan)
 
+
+@app.exception_handler(ImportError)
+async def import_error_handler(request: Request, exc: ImportError):
+    logging.error("Missing dependency: %s", exc)
+    return JSONResponse(status_code=500, content={"detail": f"服务配置错误: 缺少依赖 {exc}"})
+
 # CORS: 生产环境通过 Nginx 同源代理，不走 CORS；开发环境允许 localhost
 cors_origins = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
 app.add_middleware(
@@ -61,9 +69,6 @@ app.include_router(auth.router, prefix="/api", tags=["认证"])
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
-
-
-import auth_service
 
 
 @app.get("/api/config")
