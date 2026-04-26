@@ -1,6 +1,6 @@
 <template>
   <div class="audit-page">
-    <van-nav-bar title="操作审计" left-arrow @click-left="$router.back()" />
+    <van-nav-bar title="操作记录" left-arrow @click-left="$router.back()" />
 
     <div class="filter-bar">
       <van-dropdown-menu>

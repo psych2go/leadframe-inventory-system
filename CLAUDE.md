@@ -33,14 +33,14 @@
 | `backend/auth_service.py` | JWT 签发/验证，企微 API 调用（access_token + jsapi_ticket + 用户身份），缓存 |
 | `backend/routers/auth.py` | 企微 OAuth 完整流程：授权链接、code→JWT 回调、JS-SDK 签名配置 |
 | `frontend/src/api/index.js` | Axios 实例（baseURL = BASE_URL + 'api'，即 `/inventory/api`），所有后端接口封装 |
-| `frontend/src/utils/wxsdk.js` | 企微 JS-SDK 封装：初始化 wx.config、chooseImage、getLocalImgData，非企微降级 |
+| `frontend/src/utils/wxsdk.js` | 企微 JS-SDK 封装：初始化 wx.config、chooseImage（支持拍照+相册）、getLocalImgData，非企微降级，上传前压缩图片 |
 | `frontend/src/views/Camera.vue` | 拍照/选图（企微 JS-SDK 或 HTML input）→ OCR → 展示可编辑识别结果 → 确认入库 |
 | `frontend/src/views/CameraOut.vue` | 拍照出库：拍照识别 → 匹配库存记录 → 选择 → 出库 |
 | `frontend/src/views/StockOut.vue` | 搜索库存 → 选择 → 输入出库数量 → 确认 |
 | `frontend/src/views/InventoryList.vue` | 库存列表，搜索、下拉刷新、无限加载、滑动删除、导出 Excel |
 | `frontend/src/views/InventoryDetail.vue` | 库存详情页 |
-| `frontend/src/views/AuditLogs.vue` | 操作审计日志列表，按操作类型筛选 |
-| `frontend/src/views/Home.vue` | 首页仪表盘，统计+快捷入口+库存预警 |
+| `frontend/src/views/AuditLogs.vue` | 操作记录日志列表，按操作类型筛选 |
+| `frontend/src/views/Home.vue` | 首页仪表盘，统计+快捷入口（4 宫格）+库存预警，导航栏右上角「操作记录」入口 |
 | `frontend/src/views/StockIn.vue` | 手动入库表单 |
 | `frontend/src/router/index.js` | Vue Router，history 模式，base `/inventory/`，8 个路由 |
 | `frontend/vite.config.js` | Vite 配置，base: `/inventory/`，开发代理 `/api` → `localhost:8000` |
@@ -67,7 +67,7 @@ SQLite，文件 `backend/inventory.db`。
 
 ## OCR 流程
 
-1. 前端拍照（企微内用 JS-SDK `wx.chooseImage`，非企微用 HTML input）→ POST /api/ocr（multipart/form-data，限制 20MB）
+1. 前端拍照/选图（企微内用 JS-SDK `wx.chooseImage`，非企微用 HTML input）→ 自动压缩图片（最大宽度 1600px，JPEG 质量 80%）→ POST /api/ocr（multipart/form-data，限制 20MB）
 2. 后端保存图片到 uploads/ → base64 编码 → 调用 PaddleOCR-VL-1.5 云端 API
 3. API 返回 `result.layoutParsingResults[].markdown.text`（Markdown 文本）
 4. `parse_ocr_markdown()` 用正则从 Markdown 中提取字段（厂家、规格、批号、数量、日期等）
@@ -111,12 +111,13 @@ OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_AP
 流程：
 1. 页面加载时 `wxsdk.js` 自动获取 JS-SDK 签名（`GET /api/auth/wecom/jsapi-config?url=当前页面`）
 2. 调用 `wx.config` 初始化（使用 jsapi_ticket，与 access_token 独立）
-3. 用户点击拍照 → `wx.chooseImage` → `wx.getLocalImgData` → 转 File 对象
-4. File 走原有 OCR 流程（与 HTML input 拍照路径完全相同）
+3. 用户点击拍照/选图 → `wx.chooseImage`（支持拍照和相册）→ `wx.getLocalImgData` → 转 File 对象
+4. 图片经过前端压缩（Canvas 缩放至最大 1600px 宽度，JPEG 80% 质量）
+5. 压缩后的 File 走 OCR 流程
 
-非企微环境自动降级为 HTML `<input capture="camera">`。
+非企微环境自动降级为 HTML `<input type="file" accept="image/*">`（支持拍照和相册选择），同样经过压缩。
 
-### 操作审计
+### 操作记录（审计日志）
 
 所有数据修改操作自动记录审计日志：
 
@@ -127,7 +128,18 @@ OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_AP
 | 编辑 PUT /api/inventory/:id | update | 实际变更字段的 diff（old → new） |
 | 删除 DELETE /api/inventory/:id | delete | 被删记录的完整快照 |
 
-每条审计记录包含：操作人（user_id + user_name）、操作时间、IP 地址、变更详情。通过 `GET /api/audit-logs` 查询，前端 `/audit-logs` 页面展示。
+每条审计记录包含：操作人（user_id + user_name）、操作时间、IP 地址、变更详情。通过 `GET /api/audit-logs` 查询，前端首页导航栏右上角「操作记录」入口跳转 `/audit-logs` 页面展示。
+
+## 自动部署
+
+项目配置了 GitHub Actions（`.github/workflows/deploy.yml`），推送到 `main` 分支时自动部署到服务器。
+
+需要在 GitHub 仓库 Settings → Secrets 中配置：
+- `SERVER_HOST`：服务器 IP
+- `SERVER_USER`：SSH 用户名
+- `SERVER_SSH_KEY`：SSH 私钥
+
+部署流程：git pull → pip install 后端依赖 → npm install + build 前端 → pm2 restart
 
 ## 构建和部署
 

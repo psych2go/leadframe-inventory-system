@@ -1,10 +1,10 @@
 <template>
   <div class="home">
     <van-nav-bar title="引线框架库存管理" fixed placeholder>
-      <template #right v-if="userName">
-        <div class="user-info">
-          <van-icon name="user-o" size="16" color="#666" />
-          <span class="user-name">{{ userName }}</span>
+      <template #right>
+        <div class="nav-right" @click="$router.push('/audit-logs')">
+          <van-icon name="shield-o" size="18" color="white" />
+          <span class="nav-right-text">操作记录</span>
         </div>
       </template>
     </van-nav-bar>
@@ -66,13 +66,6 @@
           </div>
           <span class="action-text">出入库记录</span>
           <span class="action-desc">查看历史记录</span>
-        </div>
-        <div class="action-card action-audit" @click="$router.push('/audit-logs')">
-          <div class="action-icon">
-            <van-icon name="shield-o" size="28" color="#7232dd" />
-          </div>
-          <span class="action-text">操作审计</span>
-          <span class="action-desc">查看操作记录</span>
         </div>
       </div>
     </div>
@@ -196,7 +189,6 @@ const showLogs = ref(false)
 const alertItems = ref([])
 const threshold = ref(2000)
 const alertExpanded = ref(true)
-const userName = ref('')
 const loading = ref(true)
 
 function isLowStock(item) {
@@ -216,12 +208,6 @@ function parseQty(val) {
 }
 
 onMounted(async () => {
-  // 恢复用户信息
-  try {
-    const stored = localStorage.getItem('user')
-    if (stored) userName.value = JSON.parse(stored).name || ''
-  } catch {}
-
   try {
     loading.value = true
     const data = await getInventoryList('', 1, 100)
@@ -266,12 +252,13 @@ async function loadAlerts() {
   font-size: 18px;
   font-weight: 600;
 }
-.user-info {
+.nav-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  cursor: pointer;
 }
-.user-name {
+.nav-right-text {
   font-size: 13px;
   color: white;
 }
@@ -375,9 +362,6 @@ async function loadAlerts() {
 }
 .action-logs .action-icon {
   background: linear-gradient(135deg, #fff7e6 0%, #ffe8cc 100%);
-}
-.action-audit .action-icon {
-  background: linear-gradient(135deg, #f4f0ff 0%, #e8dff5 100%);
 }
 .action-text {
   font-size: 15px;

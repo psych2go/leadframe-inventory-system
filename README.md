@@ -11,7 +11,7 @@
 - **库存查询** — 搜索、分页浏览所有库存记录
 - **库存导出** — 一键导出 Excel 文件
 - **出入库记录** — 完整的出入库日志
-- **操作审计** — 所有数据变更自动记录（谁在什么时间做了什么操作）
+- **操作记录** — 所有数据变更自动记录（谁在什么时间做了什么操作）
 - **库存预警** — 数量低于 2K 自动预警提示
 - **物料编码建议** — 根据厂家规格自动建议历史物料编码
 
@@ -79,9 +79,9 @@ leadframe-inventory-system/
 │   │   │   ├── StockOut.vue      搜索出库
 │   │   │   ├── InventoryList.vue 库存列表+导出
 │   │   │   ├── InventoryDetail.vue 库存详情
-│   │   │   └── AuditLogs.vue     操作审计
+│   │   │   └── AuditLogs.vue     操作记录
 │   │   ├── utils/
-│   │   │   └── wxsdk.js          企微 JS-SDK 封装
+│   │   │   └── wxsdk.js          企微 JS-SDK + 图片压缩
 │   │   ├── api/index.js          API 请求（baseURL = /inventory/api）
 │   │   └── router/index.js       路由（base /inventory/，8 个页面）
 │   ├── index.html               含 jweixin-1.2.0.js
@@ -90,6 +90,7 @@ leadframe-inventory-system/
 ├── certs/                        SSL 证书（gitignore）
 ├── logs/                         应用日志
 ├── ecosystem.config.js           PM2 进程管理配置
+├── .github/workflows/deploy.yml  GitHub Actions 自动部署
 ├── docker-compose.yml            Docker 部署（备选）
 ├── nginx.conf                    Docker 部署用 Nginx 配置
 ├── nginx-common.conf             Docker 部署用共享 Nginx 配置
@@ -324,9 +325,10 @@ npm run dev
 
 ## 安全说明
 
-- 图片上传限制 20MB，仅接受图片类型
+- 图片上传前自动压缩（最大 1600px，JPEG 80%），上传限制 20MB，仅接受图片类型
 - 上传图片路径做了路径遍历防护
 - 出库操作使用数据库锁（BEGIN IMMEDIATE）防止并发超额
 - JWT Secret 必须配置，未设置时无法签发 Token
 - 敏感凭据（`.env`、`backend/.env`、`certs/`）已加入 `.gitignore`
 - 所有数据变更自动记录审计日志（操作人、时间、IP、变更内容）
+- 支持 GitHub Actions 自动部署（`.github/workflows/deploy.yml`）

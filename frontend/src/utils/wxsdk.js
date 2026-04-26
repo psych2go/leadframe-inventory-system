@@ -5,6 +5,44 @@
 
 const isWecom = () => /wxwork/i.test(navigator.userAgent)
 
+/**
+ * 压缩图片：最大宽度 1600px，JPEG 质量 80%
+ * 手机拍照通常 3-10MB，压缩后约 200-500KB，OCR 识别不受影响
+ */
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const MAX_WIDTH = 1600
+    const QUALITY = 0.8
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      if (img.width <= MAX_WIDTH && file.size < 1 * 1024 * 1024) {
+        resolve(file)
+        return
+      }
+      const scale = Math.min(1, MAX_WIDTH / img.width)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(
+        (blob) => {
+          resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
+        },
+        'image/jpeg',
+        QUALITY,
+      )
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve(file)
+    }
+    img.src = url
+  })
+}
+
 let wxReady = false
 let wxConfigured = false
 
@@ -50,7 +88,7 @@ function chooseImageFromWx() {
     wx.chooseImage({
       count: 1,
       sizeType: ['compressed'],
-      sourceType: ['camera'],
+      sourceType: ['camera', 'album'],
       success: (res) => {
         const localId = res.localIds[0]
         wx.getLocalImgData({
@@ -86,25 +124,26 @@ function chooseImageFromWx() {
  * 非企微环境：触发隐藏的 input[type=file] 并返回 File
  */
 export async function getPhoto() {
+  let file
   if (isWecom() && wxReady) {
-    return chooseImageFromWx()
+    file = await chooseImageFromWx()
+  } else {
+    file = await new Promise((resolve, reject) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.style.display = 'none'
+      document.body.appendChild(input)
+      input.onchange = () => {
+        const f = input.files[0]
+        document.body.removeChild(input)
+        if (f) resolve(f)
+        else reject(new Error('未选择图片'))
+      }
+      input.click()
+    })
   }
-  // 降级：用 input[type=file] 让用户选择
-  return new Promise((resolve, reject) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.capture = 'camera'
-    input.style.display = 'none'
-    document.body.appendChild(input)
-    input.onchange = () => {
-      const file = input.files[0]
-      document.body.removeChild(input)
-      if (file) resolve(file)
-      else reject(new Error('未选择图片'))
-    }
-    input.click()
-  })
+  return compressImage(file)
 }
 
 // 页面加载时初始化（延迟执行，不阻塞首屏）
