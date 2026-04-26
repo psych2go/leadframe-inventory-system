@@ -1,9 +1,19 @@
 import os
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# 加载项目根目录 .env 文件（PM2 env_file 不可靠时作为兜底）
+_env_file = Path(__file__).parent.parent / ".env"
+if _env_file.exists():
+    for line in _env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, val = line.partition("=")
+            os.environ.setdefault(key.strip(), val.strip())
 
 from database import init_db
 from routers import ocr, inventory, auth
