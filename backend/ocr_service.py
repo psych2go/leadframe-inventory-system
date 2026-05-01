@@ -280,6 +280,7 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
 
     # 生产日期
     result["production_date"] = _normalize_date(extract([
+        "PD", "pd", "Pd",
         "PLATED DATE", "Plated Date", "plated date",
         "MFG DATE", "MFG date", "mfg date", "MFG. DATE",
         "Production DATE", "production date", "Production date",
@@ -288,6 +289,7 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
 
     # 有效日期
     result["expiry_date"] = _normalize_date(extract([
+        "EXP", "exp", "Exp",
         "VALID DATE", "Valid Date", "valid date",
         "EXP DATE", "EXP date", "exp date", "EXP. DATE",
         "Expiration DATE", "expiration date", "Expiration date",

@@ -45,8 +45,8 @@ def init_db():
                 quantity TEXT DEFAULT '0',
                 note TEXT,
                 image_path TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
+                updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
                 UNIQUE(material_code, batch_no)
             )
         """)
@@ -69,8 +69,8 @@ def init_db():
                     quantity TEXT DEFAULT '0',
                     note TEXT,
                     image_path TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
+                    updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
                     UNIQUE(material_code, batch_no)
                 );
                 INSERT INTO inventory_new (id, spec, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path, created_at, updated_at)
@@ -86,7 +86,7 @@ def init_db():
                 quantity INTEGER NOT NULL,
                 note TEXT,
                 operator TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT (datetime('now','localtime'))
             )
         """)
         conn.execute("""
@@ -111,7 +111,7 @@ def init_db():
                 changes TEXT,
                 detail TEXT,
                 ip_address TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT (datetime('now','localtime'))
             )
         """)
         conn.execute("""
@@ -162,30 +162,17 @@ def inventory_get(item_id: int):
 
 
 def _qty_to_num(val) -> float:
-    """将数量字符串转为数字，支持 K/M 单位"""
+    """将数量字符串转为数字（系统以 K 为单位存储，忽略 K/M 后缀）"""
     if isinstance(val, (int, float)):
         return float(val)
     s = str(val).strip()
-    m = re.search(r"([\d.]+)\s*[Kk]", s)
-    if m:
-        return float(m.group(1)) * 1000
-    m = re.search(r"([\d.]+)\s*[Mm]", s)
-    if m:
-        return float(m.group(1)) * 1000000
     m = re.search(r"([\d.]+)", s)
-    if m:
-        return float(m.group(1))
-    return 0
+    return float(m.group(1)) if m else 0
 
 
 def _num_to_qty(val) -> str:
-    """将数字转为带 K 的显示字符串"""
+    """将数字转为 K 单位的数量字符串（纯数字，不再加 K 后缀）"""
     v = float(val)
-    if v >= 1000 and v == int(v) and v % 1000 == 0:
-        k = v / 1000
-        if k == int(k):
-            return f"{int(k)}K"
-        return f"{k}K"
     return str(int(v)) if v == int(v) else str(v)
 
 
@@ -209,7 +196,7 @@ def stock_in(material_code: str, spec: str, manufacturer: str, batch_no: str,
                 """UPDATE inventory SET quantity = ?, spec = ?, manufacturer = ?, production_date = ?,
                    expiry_date = ?, note = COALESCE(?, note),
                    image_path = COALESCE(?, image_path),
-                   updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
+                   updated_at = datetime('now','localtime') WHERE id = ?""",
                 (new_qty, spec, manufacturer, production_date, expiry_date, note, image_path, existing["id"])
             )
             inv_id = existing["id"]
@@ -261,7 +248,7 @@ def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str 
 
         new_qty = _num_to_qty(current_num - out_num)
         conn.execute(
-            "UPDATE inventory SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            "UPDATE inventory SET quantity = ?, updated_at = datetime('now','localtime') WHERE id = ?",
             (new_qty, inventory_id)
         )
         conn.execute(

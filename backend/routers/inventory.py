@@ -231,7 +231,7 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
             values = list(updates.values()) + [item_id]
             try:
                 conn.execute(
-                    f"UPDATE inventory SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    f"UPDATE inventory SET {set_clause}, updated_at = datetime('now','localtime') WHERE id = ?",
                     values,
                 )
             except sqlite3.IntegrityError:

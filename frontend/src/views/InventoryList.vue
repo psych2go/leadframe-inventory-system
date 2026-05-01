@@ -20,9 +20,9 @@
             @click="$router.push(`/inventory/${item.id}`)"
           >
             <template #value>
-              <span :class="isLowStock(item) ? 'qty-alert' : 'qty'">
-                {{ item.quantity }}
-                <van-tag v-if="isLowStock(item)" type="danger" size="medium">预警</van-tag>
+              <span :class="isLowStock(item.quantity) ? 'qty-alert' : 'qty'">
+                {{ item.quantity }}K
+                <van-tag v-if="isLowStock(item.quantity)" type="danger" size="medium">预警</van-tag>
               </span>
             </template>
           </van-cell>

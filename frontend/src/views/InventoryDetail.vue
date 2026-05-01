@@ -10,7 +10,7 @@
     </van-cell-group>
 
     <van-cell-group title="数量信息">
-      <van-cell title="数量(K)" :value="String(item.quantity)" />
+      <van-cell title="数量(K)" :value="`${item.quantity}K`" />
     </van-cell-group>
 
     <van-cell-group title="日期信息">

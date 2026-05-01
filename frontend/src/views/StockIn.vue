@@ -6,7 +6,7 @@
       <van-field v-model="form.material_code" label="物料编码" placeholder="请输入物料编码" required />
       <van-field v-model="form.spec" label="厂家规格" placeholder="请输入厂家规格" required />
       <van-field v-model="form.batch_no" label="批号" placeholder="请输入批号" />
-      <van-field v-model="form.quantity" label="数量" type="number" placeholder="请输入数量" required />
+      <van-field v-model="form.quantity" label="数量(K)" type="number" placeholder="请输入数量" required />
       <van-field v-model="form.manufacturer" label="生产厂家" placeholder="请输入厂家" />
       <van-field v-model="form.note" label="备注" placeholder="备注" />
       <van-field v-model="form.production_date" label="生产日期" placeholder="YYYY-MM-DD" />

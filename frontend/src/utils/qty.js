@@ -1,19 +1,14 @@
 /**
- * 将数量字符串解析为 K 单位的数值
- * 与后端 _qty_to_num 保持一致：
- *   "46.368" → 46.368（纯数字即 K 值）
- *   "46.368K" → 46368（有 K 后缀则乘以 1000）
- *   "5M" → 5000000
+ * 将数量字符串解析为数值（系统所有数量以 K 为单位存储）
+ *   "46.368" → 46.368（K 值）
+ *   "46.368K" → 46.368（忽略 K 后缀，因为已是 K 单位）
  */
 export function parseQtyToK(val) {
   if (typeof val === 'number') return val
   const s = String(val).trim()
-  const kMatch = s.match(/([\d.]+)\s*[Kk]/)
-  if (kMatch) return parseFloat(kMatch[1]) * 1000
-  const mMatch = s.match(/([\d.]+)\s*[Mm]/)
-  if (mMatch) return parseFloat(mMatch[1]) * 1000000
-  const numMatch = s.match(/([\d.]+)/)
-  return numMatch ? parseFloat(numMatch[1]) : 0
+  // 提取数字部分，忽略 K/M 等后缀（系统以 K 为单位，后缀只是显示用）
+  const m = s.match(/([\d.]+)/)
+  return m ? parseFloat(m[1]) : 0
 }
 
 /**

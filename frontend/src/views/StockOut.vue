@@ -10,7 +10,7 @@
           :key="item.id"
           :title="item.material_code || item.spec"
           :label="`${item.spec} | ${item.manufacturer || ''} | 批号: ${item.batch_no || '-'}`"
-          :value="`库存: ${item.quantity}`"
+          :value="`库存: ${item.quantity}K`"
           is-link
           @click="selectItem(item)"
         />
@@ -24,12 +24,12 @@
         <van-cell title="厂家规格" :value="selectedItem.spec" />
         <van-cell title="生产厂家" :value="selectedItem.manufacturer || '-'" />
         <van-cell title="批号" :value="selectedItem.batch_no || '-'" />
-        <van-cell title="当前库存" :value="String(selectedItem.quantity)" />
+        <van-cell title="当前库存(K)" :value="String(selectedItem.quantity)" />
         <van-cell v-if="selectedItem.note" title="备注" :value="selectedItem.note" />
       </van-cell-group>
 
       <van-cell-group title="出库信息">
-        <van-field v-model="outQuantity" label="出库数量" type="number" placeholder="请输入出库数量" />
+        <van-field v-model="outQuantity" label="出库数量(K)" type="number" placeholder="请输入出库数量" />
       </van-cell-group>
 
       <div class="submit-bar">

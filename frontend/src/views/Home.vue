@@ -96,7 +96,7 @@
             <span class="alert-item-info">{{ item.manufacturer || '-' }} | 批号: {{ item.batch_no || '-' }}</span>
           </div>
           <div class="alert-item-qty">
-            <span class="alert-qty-value">{{ item.quantity }}</span>
+            <span class="alert-qty-value">{{ item.quantity }}K</span>
             <van-icon name="arrow" size="12" color="#ee0a24" />
           </div>
         </div>
@@ -133,9 +133,9 @@
             <span class="recent-item-note" v-if="item.note">{{ item.note }}</span>
           </div>
           <div class="recent-item-right">
-            <span class="recent-item-qty" :class="{ 'qty-low': isLowStock(item) }">
-              {{ item.quantity }}
-              <van-tag v-if="isLowStock(item)" type="danger" size="small">预警</van-tag>
+            <span class="recent-item-qty" :class="{ 'qty-low': isLowStock(item.quantity) }">
+              {{ item.quantity }}K
+              <van-tag v-if="isLowStock(item.quantity)" type="danger" size="small">预警</van-tag>
             </span>
             <van-icon name="arrow" size="12" color="#999" />
           </div>
@@ -167,7 +167,7 @@
               <span class="log-time">{{ log.created_at }}</span>
             </div>
             <div class="log-qty" :class="log.type === 'in' ? 'text-green' : 'text-red'">
-              {{ log.type === 'in' ? '+' : '-' }}{{ log.quantity }}
+              {{ log.type === 'in' ? '+' : '-' }}{{ log.quantity }}K
             </div>
           </div>
           <van-empty v-if="!stockLogs.length" description="暂无记录" image="default" />
