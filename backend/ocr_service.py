@@ -23,6 +23,14 @@ TOKEN = os.environ.get("PADDOLEOCR_TOKEN", "")
 # 复用连接池，避免每次 OCR 请求都新建 TCP 连接
 _http_client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=10.0))
 
+
+async def close_http_client():
+    """应用关闭时清理 HTTP 连接池"""
+    try:
+        await _http_client.aclose()
+    except Exception as e:
+        logger.warning("Error closing HTTP client: %s", e)
+
 # 已知厂家名列表：(匹配模式列表, 标准名称)
 # 长名在前，避免短名误匹配
 KNOWN_MANUFACTURERS = [

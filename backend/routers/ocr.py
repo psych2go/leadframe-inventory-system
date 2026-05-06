@@ -32,13 +32,21 @@ async def ocr_recognize(file: UploadFile = File(...)):
         # 直接从内存 bytes 调 OCR，不阻塞读盘
         result = await recognize_image(content)
         # OCR 完成后异步存盘，不阻塞响应
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, _write_file, filepath, content)
+        asyncio.create_task(_save_file_async(filepath, content))
         result["image_path"] = filename
         return result
     except Exception as e:
         logger.error("OCR failed: %s", e)
         return {"error": str(e)}
+
+
+async def _save_file_async(path: str, data: bytes):
+    """异步保存上传的图片文件，异常仅记录不抛出"""
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _write_file, path, data)
+    except Exception as e:
+        logger.error("Failed to save uploaded file %s: %s", path, e)
 
 
 def _write_file(path: str, data: bytes):

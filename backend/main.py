@@ -41,6 +41,10 @@ async def lifespan(app):
     init_db()
     logging.info("Database initialized")
     yield
+    # 应用关闭时清理 HTTP 连接池
+    from ocr_service import close_http_client
+    await close_http_client()
+    logging.info("HTTP client closed")
 
 
 app = FastAPI(title="引线框架库存管理系统", version="1.0.0", lifespan=lifespan)

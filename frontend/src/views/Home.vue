@@ -188,7 +188,7 @@ const recentItems = ref([])
 const stockLogs = ref([])
 const showLogs = ref(false)
 const alertItems = ref([])
-const threshold = ref(2000)
+const threshold = ref(2)
 const alertExpanded = ref(true)
 const loading = ref(true)
 

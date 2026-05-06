@@ -6,17 +6,11 @@ from contextlib import contextmanager
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
-_pragma_set = False
-
 
 def get_connection():
-    global _pragma_set
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    if not _pragma_set:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-        _pragma_set = True
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
@@ -31,6 +25,11 @@ def get_db():
 
 
 def init_db():
+    # journal_mode 是数据库级别设置，只需执行一次
+    init_conn = sqlite3.connect(DB_PATH)
+    init_conn.execute("PRAGMA journal_mode=WAL")
+    init_conn.close()
+
     with get_db() as conn:
         # 建 inventory 表（若不存在则按新结构创建）
         conn.execute("""
@@ -127,6 +126,10 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_audit_log_action
             ON audit_log(action)
         """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_inventory_updated
+            ON inventory(updated_at DESC)
+        """)
 
 
 def _build_search_conditions(search: str = None):
@@ -150,13 +153,11 @@ def inventory_list(search: str = None, page: int = 1, size: int = 20):
             params + [size, (page - 1) * size],
         ).fetchall()
 
-        total = conn.execute(
-            f"SELECT COUNT(*) as total FROM inventory WHERE 1=1{where}", params
-        ).fetchone()["total"]
-
-        total_quantity = conn.execute(
-            f"SELECT COALESCE(SUM(CAST(quantity AS REAL)), 0) as total_qty FROM inventory WHERE 1=1{where}", params
-        ).fetchone()["total_qty"]
+        total_qty_info = conn.execute(
+            f"SELECT COUNT(*) as total, COALESCE(SUM(CAST(quantity AS REAL)), 0) as total_qty FROM inventory WHERE 1=1{where}", params
+        ).fetchone()
+        total = total_qty_info["total"]
+        total_quantity = total_qty_info["total_qty"]
 
         return [dict(r) for r in rows], total, total_quantity
 

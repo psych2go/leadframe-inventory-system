@@ -1,6 +1,7 @@
 import os
 import io
 import re
+import sqlite3
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
@@ -231,7 +232,6 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
         updates["expiry_date"] = req.expiry_date
 
     if updates:
-        import sqlite3
         # 计算变更 diff
         changes = {}
         for k, new_val in updates.items():
@@ -279,8 +279,8 @@ def delete_inventory(item_id: int, request: Request):
 
 
 @router.get("/stock-logs")
-def get_stock_logs(inventory_id: int = None, page: int = Query(1, ge=1)):
-    logs = db.stock_logs(inventory_id, page)
+def get_stock_logs(inventory_id: int = None, page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100)):
+    logs = db.stock_logs(inventory_id, page, size)
     return {"items": logs}
 
 
