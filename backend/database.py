@@ -57,6 +57,7 @@ def init_db():
         cursor = conn.execute("PRAGMA table_info(inventory)")
         cols = [row["name"] for row in cursor.fetchall()]
         if "material_code" in cols and "package_type" not in cols:
+            conn.execute("PRAGMA foreign_keys=OFF")
             conn.executescript("""
                 DROP TABLE IF EXISTS inventory_new;
                 CREATE TABLE inventory_new (
@@ -81,6 +82,7 @@ def init_db():
                 DROP TABLE inventory;
                 ALTER TABLE inventory_new RENAME TO inventory;
             """)
+            conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS stock_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
