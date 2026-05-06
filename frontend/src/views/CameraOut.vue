@@ -53,7 +53,7 @@
               <div class="item-title">{{ item.material_code || '(未填物料编码)' }}</div>
             </template>
             <template #label>
-              <div>{{ item.spec }} | {{ item.manufacturer || '-' }}</div>
+              <div>{{ item.material_code || '-' }} | {{ item.manufacturer || '-' }}</div>
               <div>批号: {{ item.batch_no || '-' }}</div>
             </template>
             <template #value>
@@ -65,7 +65,7 @@
         <div v-if="selectedItem" class="out-form">
           <van-cell-group title="已选库存">
             <van-cell title="物料编码" :value="selectedItem.material_code || '-'" />
-            <van-cell title="厂家规格" :value="selectedItem.spec" />
+            <van-cell title="生产厂家" :value="selectedItem.manufacturer || '-'" />
             <van-cell title="批号" :value="selectedItem.batch_no || '-'" />
             <van-cell title="当前库存(K)" :value="String(selectedItem.quantity)" />
             <van-cell v-if="selectedItem.note" title="备注" :value="selectedItem.note" />

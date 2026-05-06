@@ -266,7 +266,7 @@ def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str 
 def stock_logs(inventory_id: int = None, page: int = 1, size: int = 20):
     with get_db() as conn:
         query = """
-            SELECT sl.*, i.spec, i.batch_no
+            SELECT sl.*, i.spec, i.batch_no, i.material_code, i.manufacturer
             FROM stock_log sl JOIN inventory i ON sl.inventory_id = i.id
             WHERE 1=1
         """

@@ -15,7 +15,7 @@
         <van-swipe-cell v-for="item in items" :key="item.id">
           <van-cell
             :title="item.material_code || item.spec"
-            :label="`${item.spec} | ${item.manufacturer || '-'} | 批号: ${item.batch_no || '-'}${item.note ? ' | ' + item.note : ''}`"
+            :label="`${item.manufacturer || '-'}`"
             is-link
             @click="$router.push(`/inventory/${item.id}`)"
           >

@@ -1,6 +1,10 @@
 <template>
   <div class="detail-page">
-    <van-nav-bar title="库存详情" left-arrow @click-left="$router.back()" />
+    <van-nav-bar title="库存详情" left-arrow @click-left="$router.back()">
+      <template #right>
+        <van-icon name="edit" size="18" @click="$router.push(`/inventory/${item.id}/edit`)" />
+      </template>
+    </van-nav-bar>
 
     <van-cell-group title="基本信息">
       <van-cell title="物料编码" :value="item.material_code || '-'" />

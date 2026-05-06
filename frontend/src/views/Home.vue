@@ -93,7 +93,7 @@
         >
           <div class="alert-item-main">
             <span class="alert-item-title">{{ item.material_code || item.spec }}</span>
-            <span class="alert-item-info">{{ item.manufacturer || '-' }} | 批号: {{ item.batch_no || '-' }}</span>
+            <span class="alert-item-info">{{ item.manufacturer || '-' }}</span>
           </div>
           <div class="alert-item-qty">
             <span class="alert-qty-value">{{ item.quantity }}K</span>
@@ -129,7 +129,7 @@
         >
           <div class="recent-item-main">
             <span class="recent-item-title">{{ item.material_code || item.spec }}</span>
-            <span class="recent-item-info">{{ item.spec }} | {{ item.manufacturer || '-' }} | 批号: {{ item.batch_no || '-' }}</span>
+            <span class="recent-item-info">{{ item.manufacturer || '-' }}</span>
             <span class="recent-item-note" v-if="item.note">{{ item.note }}</span>
           </div>
           <div class="recent-item-right">
@@ -163,7 +163,7 @@
               />
             </div>
             <div class="log-main">
-              <span class="log-title">{{ log.spec }}</span>
+              <span class="log-title">{{ log.material_code || log.spec }}</span>
               <span class="log-time">{{ log.created_at }}</span>
             </div>
             <div class="log-qty" :class="log.type === 'in' ? 'text-green' : 'text-red'">
