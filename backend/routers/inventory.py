@@ -61,8 +61,15 @@ class InventoryUpdateRequest(BaseModel):
 
 
 @router.get("/inventory")
-def list_inventory(search: str = None, page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100)):
-    items, total, total_quantity = db.inventory_list(search, page, size)
+def list_inventory(search: str = None,
+                   package_type: str = None, spec: str = None,
+                   plating_zone: str = None, surface_treatment: str = None,
+                   page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100)):
+    items, total, total_quantity = db.inventory_list(
+        search, page, size,
+        package_type=package_type, spec=spec,
+        plating_zone=plating_zone, surface_treatment=surface_treatment,
+    )
     return {"items": items, "total": total, "total_quantity": total_quantity, "page": page, "size": size}
 
 
@@ -81,20 +88,20 @@ def get_inventory_alerts():
 
 
 @router.get("/inventory/export")
-def export_inventory(search: str = None):
+def export_inventory(search: str = None,
+                     package_type: str = None, spec: str = None,
+                     plating_zone: str = None, surface_treatment: str = None):
     """导出库存为 Excel 文件"""
     import openpyxl
 
     with db.get_db() as conn:
-        query = "SELECT * FROM inventory WHERE 1=1"
-        params = []
-        if search:
-            query += """ AND (package_type LIKE ? OR spec LIKE ? OR plating_zone LIKE ?
-                        OR surface_treatment LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"""
-            term = f"%{search}%"
-            params.extend([term, term, term, term, term, term])
-        query += " ORDER BY updated_at DESC"
-        rows = conn.execute(query, params).fetchall()
+        where, params = db._build_search_conditions(
+            search, package_type, spec, plating_zone, surface_treatment,
+        )
+        rows = conn.execute(
+            f"SELECT * FROM inventory WHERE 1=1{where} ORDER BY updated_at DESC",
+            params,
+        ).fetchall()
 
     wb = openpyxl.Workbook()
     ws = wb.active

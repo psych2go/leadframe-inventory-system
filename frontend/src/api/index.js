@@ -66,8 +66,10 @@ export async function ocrRecognize(file) {
   return data
 }
 
-export async function getInventoryList(search = '', page = 1) {
-  const { data } = await api.get('/inventory', { params: { search, page } })
+export async function getInventoryList(search = '', page = 1, filters = {}) {
+  const { data } = await api.get('/inventory', {
+    params: { search, page, ...filters },
+  })
   return data
 }
 
@@ -111,9 +113,12 @@ export async function getAuditLogs(params = {}) {
   return data
 }
 
-export async function exportInventory(search = '') {
+export async function exportInventory(search = '', filters = {}) {
+  const params = {}
+  if (search) params.search = search
+  Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v })
   const response = await api.get('/inventory/export', {
-    params: search ? { search } : {},
+    params: Object.keys(params).length ? params : {},
     responseType: 'blob',
   })
   const url = window.URL.createObjectURL(new Blob([response.data]))

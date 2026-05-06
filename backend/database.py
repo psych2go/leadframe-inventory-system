@@ -132,8 +132,12 @@ def init_db():
         """)
 
 
-def _build_search_conditions(search: str = None):
-    """构建搜索 WHERE 条件和参数"""
+def _build_search_conditions(search: str = None,
+                              package_type: str = None,
+                              spec: str = None,
+                              plating_zone: str = None,
+                              surface_treatment: str = None):
+    """构建搜索 + 筛选 WHERE 条件和参数"""
     where = ""
     params = []
     if search:
@@ -141,12 +145,26 @@ def _build_search_conditions(search: str = None):
                    OR surface_treatment LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"""
         term = f"%{search}%"
         params = [term, term, term, term, term, term]
+    if package_type:
+        where += " AND package_type LIKE ?"
+        params.append(f"%{package_type}%")
+    if spec:
+        where += " AND spec LIKE ?"
+        params.append(f"%{spec}%")
+    if plating_zone:
+        where += " AND plating_zone = ?"
+        params.append(plating_zone)
+    if surface_treatment:
+        where += " AND surface_treatment = ?"
+        params.append(surface_treatment)
     return where, params
 
 
-def inventory_list(search: str = None, page: int = 1, size: int = 20):
+def inventory_list(search: str = None, page: int = 1, size: int = 20,
+                    package_type: str = None, spec: str = None,
+                    plating_zone: str = None, surface_treatment: str = None):
     with get_db() as conn:
-        where, params = _build_search_conditions(search)
+        where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment)
 
         rows = conn.execute(
             f"SELECT * FROM inventory WHERE 1=1{where} ORDER BY updated_at DESC LIMIT ? OFFSET ?",
