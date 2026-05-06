@@ -50,7 +50,7 @@
             @click="selectedItem = item"
           >
             <template #title>
-              <div class="item-title">{{ item.package_type || item.spec }}</div>
+              <div class="item-title">{{ [item.package_type, item.spec, item.plating_zone, item.surface_treatment].filter(Boolean).join('-') || '-' }}</div>
             </template>
             <template #label>
               <div>{{ item.package_type || '-' }} | {{ item.manufacturer || '-' }}</div>
