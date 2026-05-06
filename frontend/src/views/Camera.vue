@@ -34,16 +34,24 @@
 
     <div v-if="ocrResult && !loading" class="result">
       <van-cell-group title="OCR 识别结果（可修改）">
-        <van-field
-          v-model="form.material_code"
-          label="物料编码"
-          placeholder="根据厂家规格手动填写"
-          required
-          :class="{ 'auto-filled': materialCodeAutoFilled }"
-          @focus="materialCodeAutoFilled = false"
-        />
-        <van-cell v-if="materialCodeHint" :value="materialCodeHint" size="small" />
+        <van-field v-model="form.package_type" label="封装形式" placeholder="如 SOP、QFP、DIP" required />
         <van-field v-model="form.spec" label="厂家规格" placeholder="厂家规格" required />
+        <van-field
+          v-model="form.plating_zone"
+          is-link
+          readonly
+          label="镀银区域"
+          placeholder="请选择"
+          @click="showPlatingPicker = true"
+        />
+        <van-field
+          v-model="form.surface_treatment"
+          is-link
+          readonly
+          label="表面粗化处理"
+          placeholder="请选择"
+          @click="showSurfacePicker = true"
+        />
         <van-field v-model="form.batch_no" label="批号" placeholder="批号" required />
         <van-field v-model="form.quantity" label="数量(K)" placeholder="数量" required />
         <van-field v-model="form.manufacturer" label="生产厂家" placeholder="厂家名称" required />
@@ -51,6 +59,21 @@
         <van-field v-model="form.production_date" label="生产日期" placeholder="YYYY-MM-DD" />
         <van-field v-model="form.expiry_date" label="有效日期" placeholder="YYYY-MM-DD" />
       </van-cell-group>
+
+      <van-popup v-model:show="showPlatingPicker" round position="bottom">
+        <van-picker
+          :columns="platingOptions"
+          @confirm="onPlatingConfirm"
+          @cancel="showPlatingPicker = false"
+        />
+      </van-popup>
+      <van-popup v-model:show="showSurfacePicker" round position="bottom">
+        <van-picker
+          :columns="surfaceOptions"
+          @confirm="onSurfaceConfirm"
+          @cancel="showSurfacePicker = false"
+        />
+      </van-popup>
 
       <div class="submit-bar">
         <van-button type="primary" block size="large" @click="submitStockIn" :loading="submitting">
@@ -85,7 +108,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
-import { ocrRecognize, stockIn, getMaterialCodeSuggest } from '../api'
+import { ocrRecognize, stockIn } from '../api'
 import { getPhoto } from '../utils/wxsdk'
 
 const router = useRouter()
@@ -93,10 +116,17 @@ const loading = ref(false)
 const submitting = ref(false)
 const ocrResult = ref(null)
 const imagePath = ref('')
+const showPlatingPicker = ref(false)
+const showSurfacePicker = ref(false)
+
+const platingOptions = ['单环镀', '双环镀']
+const surfaceOptions = ['CRC', 'SRC', 'ERC']
 
 const form = reactive({
-  material_code: '',
+  package_type: '',
   spec: '',
+  plating_zone: '',
+  surface_treatment: '',
   batch_no: '',
   quantity: '',
   manufacturer: '',
@@ -104,8 +134,15 @@ const form = reactive({
   production_date: '',
   expiry_date: '',
 })
-const materialCodeAutoFilled = ref(false)
-const materialCodeHint = ref('')
+
+function onPlatingConfirm({ selectedOptions }) {
+  form.plating_zone = selectedOptions[0]?.text || ''
+  showPlatingPicker.value = false
+}
+function onSurfaceConfirm({ selectedOptions }) {
+  form.surface_treatment = selectedOptions[0]?.text || ''
+  showSurfacePicker.value = false
+}
 
 async function handleCapture(source = 'camera') {
   try {
@@ -137,22 +174,6 @@ async function onFileRead(fileInfo) {
       form.note = result.parsed.note || ''
       form.production_date = result.parsed.production_date || ''
       form.expiry_date = result.parsed.expiry_date || ''
-      // 根据厂家规格自动建议物料编码
-      if (form.spec) {
-        try {
-          const res = await getMaterialCodeSuggest(form.spec)
-          if (res.suggestions && res.suggestions.length > 0) {
-            form.material_code = res.suggestions[0]
-            materialCodeAutoFilled.value = true
-            const count = res.suggestions.length
-            materialCodeHint.value = `已自动填入物料编码（共 ${count} 条历史记录），点击输入框可修改`
-          } else {
-            materialCodeHint.value = '无历史记录，请填写物料编码'
-          }
-        } catch (e) {
-          // 静默处理
-        }
-      }
     }
   } catch (e) {
     showToast({ message: '识别失败: ' + e.message, position: 'bottom' })
@@ -169,8 +190,8 @@ function copyValue(line) {
 }
 
 async function submitStockIn() {
-  if (!form.material_code.trim()) {
-    showToast('请填写物料编码')
+  if (!form.package_type.trim()) {
+    showToast('请填写封装形式')
     return
   }
   if (!form.spec.trim()) {
@@ -184,8 +205,10 @@ async function submitStockIn() {
   submitting.value = true
   try {
     await stockIn({
-      material_code: form.material_code.trim(),
+      package_type: form.package_type.trim(),
       spec: form.spec.trim(),
+      plating_zone: form.plating_zone.trim(),
+      surface_treatment: form.surface_treatment.trim(),
       manufacturer: form.manufacturer.trim(),
       batch_no: form.batch_no.trim(),
       quantity: form.quantity.trim(),
@@ -303,9 +326,6 @@ async function submitStockIn() {
   word-break: break-all;
 }
 .submit-bar { padding: 16px; }
-.auto-filled :deep(.van-field__control) {
-  color: #07c160;
-}
 
 .camera-page :deep(.van-cell-group) {
   margin: 12px;

@@ -14,7 +14,7 @@
       <van-list v-model:loading="loading" :finished="finished" @load="loadMore">
         <van-swipe-cell v-for="item in items" :key="item.id">
           <van-cell
-            :title="item.material_code || item.spec"
+            :title="item.package_type || item.spec"
             :label="`${item.manufacturer || '-'}`"
             is-link
             @click="$router.push(`/inventory/${item.id}`)"

@@ -36,8 +36,10 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                material_code TEXT NOT NULL DEFAULT '',
-                spec TEXT NOT NULL,
+                package_type TEXT NOT NULL DEFAULT '',
+                spec TEXT NOT NULL DEFAULT '',
+                plating_zone TEXT NOT NULL DEFAULT '',
+                surface_treatment TEXT NOT NULL DEFAULT '',
                 manufacturer TEXT,
                 batch_no TEXT,
                 production_date TEXT,
@@ -47,21 +49,21 @@ def init_db():
                 image_path TEXT,
                 created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
                 updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
-                UNIQUE(material_code, batch_no)
+                UNIQUE(package_type, spec, plating_zone, surface_treatment, batch_no)
             )
         """)
 
-        # 迁移旧表（如果旧表没有 material_code 列）：加列并调整约束
+        # 迁移旧表：从 material_code 结构迁移到新结构
         cursor = conn.execute("PRAGMA table_info(inventory)")
         cols = [row["name"] for row in cursor.fetchall()]
-        if "material_code" not in cols:
-            conn.execute("ALTER TABLE inventory ADD COLUMN material_code TEXT NOT NULL DEFAULT ''")
-            # SQLite 不支持 ALTER 约束，重建表
+        if "material_code" in cols and "package_type" not in cols:
             conn.executescript("""
                 CREATE TABLE inventory_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    material_code TEXT NOT NULL DEFAULT '',
-                    spec TEXT NOT NULL,
+                    package_type TEXT NOT NULL DEFAULT '',
+                    spec TEXT NOT NULL DEFAULT '',
+                    plating_zone TEXT NOT NULL DEFAULT '',
+                    surface_treatment TEXT NOT NULL DEFAULT '',
                     manufacturer TEXT,
                     batch_no TEXT,
                     production_date TEXT,
@@ -71,7 +73,7 @@ def init_db():
                     image_path TEXT,
                     created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
                     updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
-                    UNIQUE(material_code, batch_no)
+                    UNIQUE(package_type, spec, plating_zone, surface_treatment, batch_no)
                 );
                 INSERT INTO inventory_new (id, spec, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path, created_at, updated_at)
                     SELECT id, spec, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path, created_at, updated_at FROM inventory;
@@ -129,9 +131,10 @@ def _build_search_conditions(search: str = None):
     where = ""
     params = []
     if search:
-        where = " AND (material_code LIKE ? OR spec LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"
+        where = """ AND (package_type LIKE ? OR spec LIKE ? OR plating_zone LIKE ?
+                   OR surface_treatment LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"""
         term = f"%{search}%"
-        params = [term, term, term, term]
+        params = [term, term, term, term, term, term]
     return where, params
 
 
@@ -176,7 +179,8 @@ def _num_to_qty(val) -> str:
     return str(int(v)) if v == int(v) else str(v)
 
 
-def stock_in(material_code: str, spec: str, manufacturer: str, batch_no: str,
+def stock_in(package_type: str, spec: str, plating_zone: str, surface_treatment: str,
+             manufacturer: str, batch_no: str,
              production_date: str, expiry_date: str,
              quantity: str, note: str = None,
              image_path: str = None, operator: str = None, conn=None):
@@ -185,26 +189,31 @@ def stock_in(material_code: str, spec: str, manufacturer: str, batch_no: str,
         conn = get_connection()
     try:
         existing = conn.execute(
-            "SELECT id, quantity FROM inventory WHERE material_code = ? AND batch_no = ?",
-            (material_code, batch_no)
+            """SELECT id, quantity FROM inventory
+               WHERE package_type = ? AND spec = ? AND plating_zone = ?
+               AND surface_treatment = ? AND batch_no = ?""",
+            (package_type, spec, plating_zone, surface_treatment, batch_no)
         ).fetchone()
 
         if existing:
             new_num = _qty_to_num(existing["quantity"]) + _qty_to_num(quantity)
             new_qty = _num_to_qty(new_num)
             conn.execute(
-                """UPDATE inventory SET quantity = ?, spec = ?, manufacturer = ?, production_date = ?,
-                   expiry_date = ?, note = COALESCE(?, note),
-                   image_path = COALESCE(?, image_path),
+                """UPDATE inventory SET quantity = ?, plating_zone = ?, surface_treatment = ?,
+                   manufacturer = ?, production_date = ?, expiry_date = ?,
+                   note = COALESCE(?, note), image_path = COALESCE(?, image_path),
                    updated_at = datetime('now','localtime') WHERE id = ?""",
-                (new_qty, spec, manufacturer, production_date, expiry_date, note, image_path, existing["id"])
+                (new_qty, plating_zone, surface_treatment,
+                 manufacturer, production_date, expiry_date, note, image_path, existing["id"])
             )
             inv_id = existing["id"]
         else:
             cursor = conn.execute(
-                """INSERT INTO inventory (material_code, spec, manufacturer, batch_no, production_date,
-                   expiry_date, quantity, note, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (material_code, spec, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path)
+                """INSERT INTO inventory (package_type, spec, plating_zone, surface_treatment,
+                   manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (package_type, spec, plating_zone, surface_treatment,
+                 manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path)
             )
             inv_id = cursor.lastrowid
 
@@ -218,18 +227,6 @@ def stock_in(material_code: str, spec: str, manufacturer: str, batch_no: str,
     finally:
         if own_conn:
             conn.close()
-
-
-def get_material_code_suggestions(spec: str) -> list:
-    """根据厂家规格查询历史物料编码"""
-    with get_db() as conn:
-        rows = conn.execute(
-            """SELECT DISTINCT material_code FROM inventory
-               WHERE spec = ? AND material_code != ''
-               ORDER BY updated_at DESC""",
-            (spec,)
-        ).fetchall()
-        return [r["material_code"] for r in rows]
 
 
 def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str = None, conn=None):
@@ -266,7 +263,8 @@ def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str 
 def stock_logs(inventory_id: int = None, page: int = 1, size: int = 20):
     with get_db() as conn:
         query = """
-            SELECT sl.*, i.spec, i.batch_no, i.material_code, i.manufacturer
+            SELECT sl.*, i.spec, i.batch_no, i.package_type, i.plating_zone,
+                   i.surface_treatment, i.manufacturer
             FROM stock_log sl JOIN inventory i ON sl.inventory_id = i.id
             WHERE 1=1
         """

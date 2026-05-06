@@ -7,8 +7,10 @@
     </van-nav-bar>
 
     <van-cell-group title="基本信息">
-      <van-cell title="物料编码" :value="item.material_code || '-'" />
-      <van-cell title="厂家规格" :value="item.spec" />
+      <van-cell title="封装形式" :value="item.package_type || '-'" />
+      <van-cell title="厂家规格" :value="item.spec || '-'" />
+      <van-cell title="镀银区域" :value="item.plating_zone || '-'" />
+      <van-cell title="表面粗化处理" :value="item.surface_treatment || '-'" />
       <van-cell title="生产厂家" :value="item.manufacturer || '-'" />
       <van-cell title="批号" :value="item.batch_no || '-'" />
     </van-cell-group>

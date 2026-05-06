@@ -8,8 +8,8 @@
         <van-cell
           v-for="item in searchResults"
           :key="item.id"
-          :title="item.material_code || item.spec"
-          :label="`${item.material_code || '-'} | ${item.manufacturer || ''} | 批号: ${item.batch_no || '-'}`"
+          :title="item.package_type || item.spec"
+          :label="`${item.manufacturer || '-'} | 批号: ${item.batch_no || '-'}`"
           :value="`库存: ${item.quantity}K`"
           is-link
           @click="selectItem(item)"
@@ -20,8 +20,10 @@
 
     <div v-else class="out-form">
       <van-cell-group title="库存信息">
-        <van-cell title="物料编码" :value="selectedItem.material_code || '-'" />
-        <van-cell title="物料编码" :value="selectedItem.material_code || '-'" />
+        <van-cell title="封装形式" :value="selectedItem.package_type || '-'" />
+        <van-cell title="厂家规格" :value="selectedItem.spec || '-'" />
+        <van-cell title="镀银区域" :value="selectedItem.plating_zone || '-'" />
+        <van-cell title="表面粗化处理" :value="selectedItem.surface_treatment || '-'" />
         <van-cell title="生产厂家" :value="selectedItem.manufacturer || '-'" />
         <van-cell title="批号" :value="selectedItem.batch_no || '-'" />
         <van-cell title="当前库存(K)" :value="String(selectedItem.quantity)" />

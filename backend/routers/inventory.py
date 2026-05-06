@@ -27,8 +27,10 @@ def _validate_date(date_str: str, field_name: str):
 
 
 class StockInRequest(BaseModel):
-    material_code: str = ""
+    package_type: str = ""
     spec: str
+    plating_zone: str = ""
+    surface_treatment: str = ""
     manufacturer: str = ""
     batch_no: str = ""
     production_date: str = ""
@@ -47,8 +49,10 @@ class StockOutRequest(BaseModel):
 
 
 class InventoryUpdateRequest(BaseModel):
-    material_code: str = None
+    package_type: str = None
     spec: str = None
+    plating_zone: str = None
+    surface_treatment: str = None
     manufacturer: str = None
     batch_no: str = None
     production_date: str = None
@@ -84,9 +88,10 @@ def export_inventory(search: str = None):
         query = "SELECT * FROM inventory WHERE 1=1"
         params = []
         if search:
-            query += " AND (material_code LIKE ? OR spec LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"
+            query += """ AND (package_type LIKE ? OR spec LIKE ? OR plating_zone LIKE ?
+                        OR surface_treatment LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"""
             term = f"%{search}%"
-            params.extend([term, term, term, term])
+            params.extend([term, term, term, term, term, term])
         query += " ORDER BY updated_at DESC"
         rows = conn.execute(query, params).fetchall()
 
@@ -94,13 +99,15 @@ def export_inventory(search: str = None):
     ws = wb.active
     ws.title = "库存清单"
 
-    headers = ["物料编码", "规格", "厂家", "批号", "生产日期", "有效期", "数量", "备注"]
+    headers = ["封装形式", "规格", "镀银区域", "表面粗化处理", "厂家", "批号", "生产日期", "有效期", "数量", "备注"]
     ws.append(headers)
 
     for row in rows:
         ws.append([
-            row["material_code"],
+            row["package_type"],
             row["spec"],
+            row["plating_zone"],
+            row["surface_treatment"],
             row["manufacturer"],
             row["batch_no"],
             row["production_date"],
@@ -155,8 +162,10 @@ def do_stock_in(req: StockInRequest, request: Request):
     _validate_date(req.expiry_date, "有效日期")
     with db.get_db() as conn:
         inv_id = db.stock_in(
-            material_code=req.material_code.strip(),
+            package_type=req.package_type.strip(),
             spec=req.spec.strip(),
+            plating_zone=req.plating_zone.strip(),
+            surface_treatment=req.surface_treatment.strip(),
             manufacturer=req.manufacturer.strip(),
             batch_no=req.batch_no.strip(),
             production_date=req.production_date.strip(),
@@ -204,10 +213,14 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
         raise HTTPException(404, "库存记录不存在")
 
     updates = {}
-    if req.material_code is not None:
-        updates["material_code"] = req.material_code
+    if req.package_type is not None:
+        updates["package_type"] = req.package_type
     if req.spec is not None:
         updates["spec"] = req.spec
+    if req.plating_zone is not None:
+        updates["plating_zone"] = req.plating_zone
+    if req.surface_treatment is not None:
+        updates["surface_treatment"] = req.surface_treatment
     if req.manufacturer is not None:
         updates["manufacturer"] = req.manufacturer
     if req.batch_no is not None:
@@ -235,7 +248,7 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
                     values,
                 )
             except sqlite3.IntegrityError:
-                raise HTTPException(400, "物料编码+批号组合已存在，不能重复")
+                raise HTTPException(400, "该组合已存在，不能重复")
             # 审计：更新操作（只记录实际变更的字段）
             if changes:
                 db.write_audit(
@@ -279,15 +292,6 @@ def get_audit_logs(
 ):
     items, total = db.query_audit_logs(action=action, page=page, size=size)
     return {"items": items, "total": total, "page": page, "size": size}
-
-
-@router.get("/material-code-suggest")
-def material_code_suggest(spec: str = Query("")):
-    """根据厂家规格建议物料编码"""
-    if not spec.strip():
-        return {"suggestions": []}
-    suggestions = db.get_material_code_suggestions(spec.strip())
-    return {"suggestions": suggestions}
 
 
 @router.get("/uploads/{filename}")

@@ -101,11 +101,6 @@ export async function getStockLogs(inventoryId = null, page = 1) {
   return data
 }
 
-export async function getMaterialCodeSuggest(spec) {
-  const { data } = await api.get('/material-code-suggest', { params: { spec } })
-  return data
-}
-
 export async function getInventoryAlerts() {
   const { data } = await api.get('/inventory/alerts')
   return data
