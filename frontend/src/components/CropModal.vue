@@ -1,13 +1,15 @@
 <template>
   <van-popup :show="visible" position="bottom" :style="{ height: '100vh' }" :closeable="false" @click-overlay="cancel">
     <div class="crop-modal">
+      <!-- 全屏裁剪区域 -->
+      <div class="crop-body" ref="containerEl">
+        <img ref="imgEl" :src="imageUrl" alt="裁剪" style="display:none" />
+      </div>
+      <!-- 顶部操作栏（叠加在图片上） -->
       <div class="crop-header">
         <span class="crop-cancel" @click="cancel">取消</span>
         <span class="crop-title">裁剪标签区域</span>
         <span class="crop-confirm" @click="confirm">确认</span>
-      </div>
-      <div class="crop-body" ref="containerEl">
-        <img ref="imgEl" :src="imageUrl" alt="裁剪" style="display:none" />
       </div>
       <div class="crop-hint">调整选框，保留标签区域，减少背景干扰</div>
     </div>
@@ -133,40 +135,16 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .crop-modal {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: 100vh;
   background: #000;
+  overflow: hidden;
 }
 
-.crop-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: #fff;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.crop-cancel {
-  color: #666;
-  cursor: pointer;
-}
-
-.crop-title {
-  font-weight: 600;
-  color: #333;
-}
-
-.crop-confirm {
-  color: #1989fa;
-  font-weight: 600;
-  cursor: pointer;
-}
-
+/* 全屏裁剪容器 */
 .crop-body {
-  flex: 1;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -174,12 +152,56 @@ onBeforeUnmount(() => {
   background: #000;
 }
 
+/* 顶栏叠加层 */
+.crop-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+  font-size: 16px;
+  color: #fff;
+}
+
+.crop-cancel {
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.15);
+}
+
+.crop-title {
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.crop-confirm {
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: #1989fa;
+}
+
+/* 底部提示叠加 */
 .crop-hint {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
   text-align: center;
   padding: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-  background: #000;
-  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.8);
+  background: linear-gradient(to top, rgba(0,0,0,0.5), transparent);
 }
 </style>
