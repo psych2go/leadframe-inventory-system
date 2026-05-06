@@ -58,6 +58,7 @@ def init_db():
         cols = [row["name"] for row in cursor.fetchall()]
         if "material_code" in cols and "package_type" not in cols:
             conn.executescript("""
+                DROP TABLE IF EXISTS inventory_new;
                 CREATE TABLE inventory_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     package_type TEXT NOT NULL DEFAULT '',
