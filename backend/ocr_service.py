@@ -300,7 +300,7 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     return result
 
 
-def recognize_image(image_path: str) -> dict:
+async def recognize_image(image_path: str) -> dict:
     """调用 PaddleOCR-VL-1.5 云端 API 对图片执行 OCR 识别"""
     if not TOKEN:
         return {"error": "未配置 PaddleOCR API TOKEN，请设置环境变量 PADDOLEOCR_TOKEN"}
@@ -325,8 +325,8 @@ def recognize_image(image_path: str) -> dict:
         }
 
         # 连接超时 10 秒，读取超时 120 秒（PaddleOCR 冷启动可能较慢）
-        with httpx.Client(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)) as client:
-            response = client.post(API_URL, json=payload, headers=headers)
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)) as client:
+            response = await client.post(API_URL, json=payload, headers=headers)
 
         if response.status_code != 200:
             logger.error("PaddleOCR API error: %s %s", response.status_code, response.text)

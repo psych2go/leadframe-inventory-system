@@ -31,7 +31,7 @@ async def ocr_recognize(file: UploadFile = File(...)):
 
     try:
         from ocr_service import recognize_image
-        result = recognize_image(filepath)
+        result = await recognize_image(filepath)
         result["image_path"] = filename
         return result
     except Exception as e:
