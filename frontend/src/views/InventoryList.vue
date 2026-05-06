@@ -10,58 +10,50 @@
       <van-search v-model="searchText" placeholder="搜索规格/批号/厂家" @search="onSearch" />
     </div>
 
-    <!-- 筛选面板 -->
+    <!-- 筛选栏：始终可见，修改即搜 -->
     <div class="filter-bar">
-      <van-button size="small" plain :type="hasActiveFilters ? 'primary' : 'default'" @click="showFilter = !showFilter" class="filter-toggle-btn">
-        <span>{{ showFilter ? '收起筛选' : '展开筛选' }}</span>
-        <van-icon :name="showFilter ? 'up' : 'down'" />
-      </van-button>
-      <van-button v-if="hasActiveFilters" size="small" plain type="warning" @click="resetFilters" class="filter-reset-btn">
-        清除筛选
-      </van-button>
+      <div class="filter-row">
+        <div class="filter-chip" :class="{ active: filters.package_type }" @click="focusField('package_type')">
+          <span class="chip-label">封装</span>
+          <span class="chip-val">{{ filters.package_type || '全部' }}</span>
+        </div>
+        <div class="filter-chip" :class="{ active: filters.spec }" @click="focusField('spec')">
+          <span class="chip-label">规格</span>
+          <span class="chip-val">{{ filters.spec || '全部' }}</span>
+        </div>
+        <div class="filter-chip" :class="{ active: filters.plating_zone }" @click="showPlatingPicker = true">
+          <span class="chip-label">镀银</span>
+          <span class="chip-val">{{ platingLabel(filters.plating_zone) }}</span>
+        </div>
+        <div class="filter-chip" :class="{ active: filters.surface_treatment }" @click="showSurfacePicker = true">
+          <span class="chip-label">粗化</span>
+          <span class="chip-val">{{ surfaceLabel(filters.surface_treatment) }}</span>
+        </div>
+      </div>
+      <div v-if="hasActiveFilters" class="filter-bar-bottom">
+        <span class="filter-reset-link" @click="resetFilters">清除所有筛选</span>
+      </div>
     </div>
 
-    <div v-if="showFilter" class="filter-panel">
-      <div class="filter-grid">
-        <div class="filter-item">
-          <span class="filter-label">封装形式</span>
-          <van-field v-model="filters.package_type" placeholder="如 SOP、QFP" clearable />
-        </div>
-        <div class="filter-item">
-          <span class="filter-label">规格</span>
-          <van-field v-model="filters.spec" placeholder="规格关键词" clearable />
-        </div>
-        <div class="filter-item">
-          <span class="filter-label">镀银区域</span>
-          <van-field
-            v-model="filters.plating_zone"
-            is-link
-            readonly
-            placeholder="全部"
-            @click="showPlatingPicker = true"
-          />
-        </div>
-        <div class="filter-item">
-          <span class="filter-label">表面粗化处理</span>
-          <van-field
-            v-model="filters.surface_treatment"
-            is-link
-            readonly
-            placeholder="全部"
-            @click="showSurfacePicker = true"
-          />
-        </div>
+    <!-- 弹出输入框（封装/规格） -->
+    <van-action-sheet v-model:show="showFieldSheet" :title="'输入' + activeFieldLabel">
+      <div class="field-sheet-body">
+        <van-field
+          v-model="activeFieldValue"
+          :placeholder="'输入' + activeFieldLabel"
+          clearable
+          autofocus
+          @input="onFieldInput"
+        />
       </div>
-      <div class="filter-actions">
-        <van-button type="primary" size="small" @click="applyFilters">应用筛选</van-button>
-      </div>
-      <van-popup v-model:show="showPlatingPicker" round position="bottom">
-        <van-picker :columns="platingOptions" @confirm="onPlatingConfirm" @cancel="showPlatingPicker = false" />
-      </van-popup>
-      <van-popup v-model:show="showSurfacePicker" round position="bottom">
-        <van-picker :columns="surfaceOptions" @confirm="onSurfaceConfirm" @cancel="showSurfacePicker = false" />
-      </van-popup>
-    </div>
+    </van-action-sheet>
+
+    <van-popup v-model:show="showPlatingPicker" round position="bottom">
+      <van-picker :columns="platingOptions" @confirm="onPlatingConfirm" @cancel="showPlatingPicker = false" />
+    </van-popup>
+    <van-popup v-model:show="showSurfacePicker" round position="bottom">
+      <van-picker :columns="surfaceOptions" @confirm="onSurfaceConfirm" @cancel="showSurfacePicker = false" />
+    </van-popup>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
       <van-list v-model:loading="loading" :finished="finished" @load="loadMore">
@@ -101,9 +93,12 @@ const loading = ref(false)
 const finished = ref(false)
 const refreshing = ref(false)
 const exporting = ref(false)
-const showFilter = ref(false)
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
+// 文本字段弹出输入
+const showFieldSheet = ref(false)
+const activeFieldKey = ref('')
+const activeFieldValue = ref('')
 let page = 1
 
 const filters = reactive({
@@ -125,13 +120,38 @@ const surfaceOptions = [
   { text: 'ERC', value: 'ERC' },
 ]
 
+const fieldLabels = {
+  package_type: '封装形式',
+  spec: '规格',
+}
+
+const activeFieldLabel = computed(() => fieldLabels[activeFieldKey.value] || '')
+
+function platingLabel(v) { return v || '全部' }
+function surfaceLabel(v) { return v || '全部' }
+
+function focusField(key) {
+  activeFieldKey.value = key
+  activeFieldValue.value = filters[key] || ''
+  showFieldSheet.value = true
+}
+
+let searchTimer = null
+function onFieldInput() {
+  filters[activeFieldKey.value] = activeFieldValue.value
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => loadData(), 300)
+}
+
 function onPlatingConfirm({ selectedValues }) {
   filters.plating_zone = selectedValues[0] || ''
   showPlatingPicker.value = false
+  loadData()
 }
 function onSurfaceConfirm({ selectedValues }) {
   filters.surface_treatment = selectedValues[0] || ''
   showSurfacePicker.value = false
+  loadData()
 }
 
 const hasActiveFilters = computed(() =>
@@ -179,11 +199,6 @@ function onRefresh() {
 }
 
 function onSearch() {
-  loadData()
-}
-
-function applyFilters() {
-  showFilter.value = false
   loadData()
 }
 
@@ -246,64 +261,65 @@ async function doExport() {
 .search-bar :deep(.van-search__content) {
   border-radius: 8px;
 }
-/* 筛选面板 */
+/* 筛选栏 - Chip 风格 */
 .filter-bar {
+  padding: 4px 12px 8px;
+}
+.filter-row {
   display: flex;
   gap: 8px;
-  padding: 8px 12px;
-  align-items: center;
+  flex-wrap: wrap;
 }
-.filter-toggle-btn {
-  font-size: 13px;
-  height: 32px;
-  border-radius: 6px;
-}
-.filter-reset-btn {
-  font-size: 13px;
-  height: 32px;
-  border-radius: 6px;
-}
-.filter-panel {
-  background: white;
-  margin: 0 12px 4px;
-  padding: 8px 12px 4px;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-.filter-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 4px 0;
-}
-.filter-item {
+.filter-chip {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-.filter-label {
-  font-size: 13px;
-  color: #666;
-  white-space: nowrap;
-  width: 7em;
-  text-align: right;
-}
-.filter-item :deep(.van-field) {
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 16px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
   flex: 1;
-  padding: 6px 8px;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
-  background: #fafafa;
-  font-size: 13px;
-  min-height: 32px;
-}
-.filter-select {
-  flex: 1;
-}
-.filter-actions {
-  display: flex;
+  min-width: 0;
   justify-content: center;
-  padding: 8px 0 4px;
+}
+.filter-chip:active {
+  opacity: 0.7;
+}
+.filter-chip.active {
+  border-color: #1989fa;
+  background: #f0f9ff;
+}
+.chip-label {
+  color: #999;
+  white-space: nowrap;
+}
+.chip-val {
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px;
+}
+.filter-chip.active .chip-val {
+  color: #1989fa;
+  font-weight: 500;
+}
+.filter-bar-bottom {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 6px;
+}
+.filter-reset-link {
+  font-size: 12px;
+  color: #ee0a24;
+  cursor: pointer;
+}
+/* 弹出输入框 */
+.field-sheet-body {
+  padding: 16px;
 }
 .inventory-page :deep(.van-cell) {
   margin: 8px 12px;
