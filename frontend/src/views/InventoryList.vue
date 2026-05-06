@@ -14,7 +14,7 @@
     <div class="filter-bar">
       <div class="filter-row">
         <div class="filter-chip" :class="{ active: filters.package_type }" @click="focusField('package_type')">
-          <span class="chip-label">封装</span>
+          <span class="chip-label">封装形式</span>
           <span class="chip-val">{{ filters.package_type || '全部' }}</span>
         </div>
         <div class="filter-chip" :class="{ active: filters.spec }" @click="focusField('spec')">
