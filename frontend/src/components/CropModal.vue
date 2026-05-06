@@ -145,11 +145,13 @@ onBeforeUnmount(() => {
 .crop-body {
   position: absolute;
   inset: 0;
-  overflow: hidden;
   display: flex;
-  align-items: center;
-  justify-content: center;
   background: #000;
+}
+/* cropper-canvas 是 JS 动态注入的 Shadow DOM 元素，
+   通过 flex stretch 让它自行拉伸填满容器 */
+.crop-body :deep(cropper-canvas) {
+  flex: 1;
 }
 
 /* 顶栏叠加层 */
