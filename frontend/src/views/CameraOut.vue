@@ -108,6 +108,19 @@
       </div>
     </div>
   </div>
+
+  <Viewfinder
+    :visible="showViewfinder"
+    @capture="onViewfinderCapture"
+    @cancel="onViewfinderCancel"
+    @error="onViewfinderError"
+  />
+  <CropModal
+    :visible="showCrop"
+    :file="cropFile"
+    @confirm="onCropConfirm"
+    @cancel="onCropCancel"
+  />
 </template>
 
 <script setup>
@@ -115,8 +128,10 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { ocrRecognize, getInventoryList, stockOut } from '../api'
-import { getPhoto } from '../utils/wxsdk'
+import { getRawPhoto, compressImage, isWebRTCSupported } from '../utils/wxsdk'
 import { parseQtyToK } from '../utils/qty'
+import Viewfinder from '../components/Viewfinder.vue'
+import CropModal from '../components/CropModal.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -130,15 +145,60 @@ const selectedItem = ref(null)
 const searchDone = ref(false)
 const outQuantity = ref('')
 
+// 取景框 + 裁剪弹窗状态
+const showViewfinder = ref(false)
+const showCrop = ref(false)
+const cropFile = ref(null)
+
 async function handleCapture(source = 'camera') {
+  if (source === 'camera' && isWebRTCSupported()) {
+    showViewfinder.value = true
+  } else {
+    try {
+      const file = await getRawPhoto(source)
+      cropFile.value = file
+      showCrop.value = true
+    } catch (e) {
+      if (e.message !== '未选择图片') {
+        showToast({ message: '拍照失败: ' + e.message, position: 'bottom' })
+      }
+    }
+  }
+}
+
+async function onViewfinderCapture(file) {
+  showViewfinder.value = false
+  await onFileRead({ file })
+}
+
+async function onViewfinderError(msg) {
+  showViewfinder.value = false
+  showToast({ message: msg + '，使用系统相机', position: 'bottom' })
   try {
-    const file = await getPhoto(source)
-    await onFileRead({ file })
+    const file = await getRawPhoto('camera')
+    cropFile.value = file
+    showCrop.value = true
   } catch (e) {
     if (e.message !== '未选择图片') {
       showToast({ message: '拍照失败: ' + e.message, position: 'bottom' })
     }
   }
+}
+
+function onViewfinderCancel() {
+  showViewfinder.value = false
+}
+
+async function onCropConfirm(file) {
+  showCrop.value = false
+  cropFile.value = null
+  const compressed = await compressImage(file)
+  await onFileRead({ file: compressed })
+}
+
+function onCropCancel() {
+  showCrop.value = false
+  cropFile.value = null
 }
 
 async function onFileRead(fileInfo) {

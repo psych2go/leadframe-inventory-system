@@ -6,13 +6,25 @@
 const isWecom = () => /wxwork/i.test(navigator.userAgent)
 
 /**
- * 压缩图片：最大宽度 500px，JPEG 质量 0.5
- * 缩放直接走 Canvas + JPEG 编码，JPEG 自带色度子采样，体积已足够小
+ * WebRTC 支持检测
+ * 带 try/catch 兜底，因为 X5 内核可能虽返回对象但调用时报错
  */
-function compressImage(file) {
+export function isWebRTCSupported() {
+  try {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 压缩图片：最大宽度 1600px，JPEG 质量 0.85
+ * 前端做基本压缩减小传输体积，同时保留足够分辨率保证 OCR 识别效果
+ */
+export function compressImage(file) {
   return new Promise((resolve) => {
-    const MAX_WIDTH = 500
-    const QUALITY = 0.5
+    const MAX_WIDTH = 1600
+    const QUALITY = 0.85
     const img = new Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {
@@ -122,32 +134,32 @@ function chooseImageFromWx(sourceType) {
 }
 
 /**
- * 获取图片（指定来源）
+ * 获取原始图片文件（不压缩），用于裁剪流程
  * @param {'camera'|'album'} source - camera 拍照，album 从相册选择
  */
-export async function getPhoto(source = 'camera') {
-  let file
+export async function getRawPhoto(source = 'camera') {
   if (isWecom() && wxReady) {
-    file = await chooseImageFromWx(source)
-  } else {
-    file = await new Promise((resolve, reject) => {
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = 'image/*'
-      if (source === 'camera') input.capture = 'camera'
-      input.style.display = 'none'
-      document.body.appendChild(input)
-      input.onchange = () => {
-        const f = input.files[0]
-        document.body.removeChild(input)
-        if (f) resolve(f)
-        else reject(new Error('未选择图片'))
-      }
-      input.click()
-    })
+    return chooseImageFromWx(source)
   }
-  return compressImage(file)
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    if (source === 'camera') input.capture = 'camera'
+    input.style.display = 'none'
+    document.body.appendChild(input)
+    input.onchange = () => {
+      const f = input.files[0]
+      document.body.removeChild(input)
+      if (f) resolve(f)
+      else reject(new Error('未选择图片'))
+    }
+    input.click()
+  })
 }
+
+// 兼容旧引用
+export const getPhoto = getRawPhoto
 
 // 页面加载时初始化（延迟执行，不阻塞首屏）
 if (isWecom()) {

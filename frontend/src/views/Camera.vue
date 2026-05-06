@@ -103,6 +103,19 @@
       </div>
     </div>
   </div>
+
+  <Viewfinder
+    :visible="showViewfinder"
+    @capture="onViewfinderCapture"
+    @cancel="onViewfinderCancel"
+    @error="onViewfinderError"
+  />
+  <CropModal
+    :visible="showCrop"
+    :file="cropFile"
+    @confirm="onCropConfirm"
+    @cancel="onCropCancel"
+  />
 </template>
 
 <script setup>
@@ -110,7 +123,9 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { ocrRecognize, stockIn } from '../api'
-import { getPhoto } from '../utils/wxsdk'
+import { getRawPhoto, compressImage, isWebRTCSupported } from '../utils/wxsdk'
+import Viewfinder from '../components/Viewfinder.vue'
+import CropModal from '../components/CropModal.vue'
 
 const router = useRouter()
 const loading = ref(false)
@@ -120,6 +135,12 @@ const imagePath = ref('')
 const ocrSpec = ref('')
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
+
+// 取景框 + 裁剪弹窗状态
+const showViewfinder = ref(false)
+const showCrop = ref(false)
+const cropFile = ref(null)
+const captureSource = ref('') // 'camera' | 'album'
 
 const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }, { text: '无', value: '' }]
 const surfaceOptions = [{ text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }, { text: '无', value: '' }]
@@ -147,14 +168,59 @@ function onSurfaceConfirm({ selectedValues }) {
 }
 
 async function handleCapture(source = 'camera') {
+  captureSource.value = source
+  if (source === 'camera' && isWebRTCSupported()) {
+    // 方案 B：实时取景框（WebRTC）
+    showViewfinder.value = true
+  } else {
+    // 方案 A（降级）：拍照/选图后裁剪
+    try {
+      const file = await getRawPhoto(source)
+      cropFile.value = file
+      showCrop.value = true
+    } catch (e) {
+      if (e.message !== '未选择图片') {
+        showToast({ message: e.message === '未选择图片' ? '' : '拍照失败: ' + e.message, position: 'bottom' })
+      }
+    }
+  }
+}
+
+async function onViewfinderCapture(file) {
+  showViewfinder.value = false
+  await onFileRead({ file })
+}
+
+async function onViewfinderError(msg) {
+  showViewfinder.value = false
+  showToast({ message: msg + '，使用系统相机', position: 'bottom' })
+  // WebRTC 失败，降级到方案 A：直接调起系统相机 + CropModal
   try {
-    const file = await getPhoto(source)
-    await onFileRead({ file })
+    const file = await getRawPhoto('camera')
+    cropFile.value = file
+    showCrop.value = true
   } catch (e) {
     if (e.message !== '未选择图片') {
       showToast({ message: '拍照失败: ' + e.message, position: 'bottom' })
     }
   }
+}
+
+async function onViewfinderCancel() {
+  showViewfinder.value = false
+}
+
+async function onCropConfirm(file) {
+  showCrop.value = false
+  cropFile.value = null
+  // 裁剪后做一次性压缩
+  const compressed = await compressImage(file)
+  await onFileRead({ file: compressed })
+}
+
+function onCropCancel() {
+  showCrop.value = false
+  cropFile.value = null
 }
 
 async function onFileRead(fileInfo) {
