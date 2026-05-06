@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 API_URL = os.environ.get("PADDOLEOCR_API_URL", "")
 TOKEN = os.environ.get("PADDOLEOCR_TOKEN", "")
 
+# 复用连接池，避免每次 OCR 请求都新建 TCP 连接
+_http_client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0))
+
 # 已知厂家名列表：(匹配模式列表, 标准名称)
 # 长名在前，避免短名误匹配
 KNOWN_MANUFACTURERS = [
@@ -319,14 +322,13 @@ async def recognize_image(image_path: str) -> dict:
             "fileType": 1,
             "useDocOrientationClassify": False,
             "useDocUnwarping": False,
-            "useLayoutDetection": True,
+            "useLayoutDetection": False,
             "useChartRecognition": False,
             "prettifyMarkdown": False,
         }
 
         # 连接超时 10 秒，读取超时 120 秒（PaddleOCR 冷启动可能较慢）
-        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)) as client:
-            response = await client.post(API_URL, json=payload, headers=headers)
+        response = await _http_client.post(API_URL, json=payload, headers=headers)
 
         if response.status_code != 200:
             logger.error("PaddleOCR API error: %s %s", response.status_code, response.text)

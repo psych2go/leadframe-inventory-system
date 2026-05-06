@@ -1,7 +1,6 @@
 import os
 import uuid
 import logging
-import tempfile
 
 from fastapi import APIRouter, UploadFile, File
 
@@ -12,22 +11,6 @@ UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 
 
 MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB
-
-
-def _compress_for_ocr(image_path: str, max_size: int = 1024, quality: int = 70) -> str:
-    """将图片压缩到指定尺寸，返回临时文件路径。用于减小传给 OCR API 的体积。"""
-    from PIL import Image
-    img = Image.open(image_path)
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
-    w, h = img.size
-    if max(w, h) > max_size:
-        ratio = max_size / max(w, h)
-        img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
-    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-    img.save(tmp, format="JPEG", quality=quality)
-    tmp.close()
-    return tmp.name
 
 
 @router.post("/ocr")
@@ -48,12 +31,8 @@ async def ocr_recognize(file: UploadFile = File(...)):
 
     try:
         from ocr_service import recognize_image
-        # 二次压缩供 OCR 使用，保留原图存档
-        compressed = _compress_for_ocr(filepath)
-        try:
-            result = await recognize_image(compressed)
-        finally:
-            os.unlink(compressed)
+        # 前端已压缩，直接使用原图调 OCR
+        result = await recognize_image(filepath)
         result["image_path"] = filename
         return result
     except Exception as e:
