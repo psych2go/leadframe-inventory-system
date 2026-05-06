@@ -317,11 +317,11 @@ async def recognize_image(image_path: str) -> dict:
         payload = {
             "file": file_data,
             "fileType": 1,
-            "useDocOrientationClassify": True,
+            "useDocOrientationClassify": False,
             "useDocUnwarping": False,
             "useLayoutDetection": True,
-            "useChartRecognition": True,
-            "prettifyMarkdown": True,
+            "useChartRecognition": False,
+            "prettifyMarkdown": False,
         }
 
         # 连接超时 10 秒，读取超时 120 秒（PaddleOCR 冷启动可能较慢）
