@@ -6,12 +6,12 @@
 const isWecom = () => /wxwork/i.test(navigator.userAgent)
 
 /**
- * 压缩图片：最大宽度 1600px，JPEG 质量 80%
- * 手机拍照通常 3-10MB，压缩后约 200-500KB，OCR 识别不受影响
+ * 压缩并转灰度图：最大宽度 500px，JPEG 质量 0.5
+ * 先转为灰度再编码，省掉色度通道，JPEG 体积约再减 30%
  */
 function compressImage(file) {
   return new Promise((resolve) => {
-    const MAX_WIDTH = 600
+    const MAX_WIDTH = 500
     const QUALITY = 0.5
     const img = new Image()
     const url = URL.createObjectURL(file)
@@ -27,6 +27,16 @@ function compressImage(file) {
       canvas.height = Math.round(img.height * scale)
       const ctx = canvas.getContext('2d')
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+      // 转灰度：OCR 不需要颜色信息，去掉色度通道可压缩更小
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const pixels = imageData.data
+      for (let i = 0; i < pixels.length; i += 4) {
+        const gray = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]
+        pixels[i] = pixels[i + 1] = pixels[i + 2] = gray
+      }
+      ctx.putImageData(imageData, 0, 0)
+
       canvas.toBlob(
         (blob) => {
           resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
