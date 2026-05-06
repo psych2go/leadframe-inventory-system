@@ -94,14 +94,6 @@
       </div>
     </div>
 
-    <div class="material-code-hint" v-if="!ocrResult">
-      <div class="hint-inner">
-        <div class="hint-title">物料编码命名规则（试行）</div>
-        <div class="hint-line"><b>通用：</b>封装形式-载体尺寸-单环镀/双环镀-CRC/SRC/ERC 或 封装形式-XX型号专用;</div>
-        <div class="hint-line"><b>QFN/DFN：</b>封装形式-塑封体尺寸-引脚间距e(基岛尺寸)-单环镀/双环镀-CRC/SRC/ERC；</div>
-        <div class="hint-note">必须含有的信息：封装形式和载体尺寸或塑封体尺寸或XX型号；尺寸之间用*号连接，比如80*80。</div>
-      </div>
-    </div>
   </div>
 
   <Viewfinder
@@ -302,31 +294,6 @@ async function submitStockIn() {
   display: flex;
   flex-direction: column;
   background: #f7f8fa;
-}
-.material-code-hint {
-  margin-top: auto;
-  padding: 12px 16px 20px;
-  text-align: center;
-}
-.hint-inner {
-  display: inline-block;
-  text-align: left;
-}
-.hint-title {
-  font-size: 14px;
-  font-weight: bold;
-  color: #333;
-  margin-bottom: 8px;
-}
-.hint-line {
-  font-size: 13px;
-  color: #666;
-  line-height: 1.8;
-}
-.hint-note {
-  font-size: 12px;
-  color: #ff976a;
-  margin-top: 6px;
 }
 .upload-area { padding: 32px 16px; text-align: center; }
 .upload-cards {
