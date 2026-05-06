@@ -130,14 +130,22 @@ function capture() {
   const cropW = (fr.width / vr.width) * sw
   const cropH = (fr.height / vr.height) * sh
 
-  // 裁切 ROI
+  // 裁切 ROI 后降分辨率到 max 1000px
+  const MAX_OUTPUT_W = 1000
+  let outW = Math.round(cropW)
+  let outH = Math.round(cropH)
+  if (outW > MAX_OUTPUT_W) {
+    const scale = MAX_OUTPUT_W / outW
+    outW = MAX_OUTPUT_W
+    outH = Math.round(outH * scale)
+  }
   const canvas = document.createElement('canvas')
-  canvas.width = Math.round(cropW)
-  canvas.height = Math.round(cropH)
+  canvas.width = outW
+  canvas.height = outH
   const ctx = canvas.getContext('2d')
   ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
 
-  // 转 File
+  // 转 File（质量 0.85，标签 ROI 足够）
   canvas.toBlob(
     (blob) => {
       stopStream()
@@ -145,7 +153,7 @@ function capture() {
       emit('capture', file)
     },
     'image/jpeg',
-    0.92,
+    0.85,
   )
 }
 

@@ -106,8 +106,8 @@ async function confirm() {
   }
   try {
     const canvas = await cropperCanvas.$toCanvas({
-      maxWidth: 1600,
-      maxHeight: 1600,
+      maxWidth: 1000,
+      maxHeight: 1000,
       imageSmoothingQuality: 'high',
     })
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85))

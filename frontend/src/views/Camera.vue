@@ -115,7 +115,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { ocrRecognize, stockIn } from '../api'
-import { getRawPhoto, compressImage, isWebRTCSupported } from '../utils/wxsdk'
+import { getRawPhoto, isWebRTCSupported } from '../utils/wxsdk'
 import Viewfinder from '../components/Viewfinder.vue'
 import CropModal from '../components/CropModal.vue'
 
@@ -205,9 +205,8 @@ async function onViewfinderCancel() {
 async function onCropConfirm(file) {
   showCrop.value = false
   cropFile.value = null
-  // 裁剪后做一次性压缩
-  const compressed = await compressImage(file)
-  await onFileRead({ file: compressed })
+  // CropModal 已输出 1000px/0.85 的 JPEG，直接送 OCR
+  await onFileRead({ file })
 }
 
 function onCropCancel() {
