@@ -21,7 +21,7 @@
     <div v-else class="out-form">
       <van-cell-group title="库存信息">
         <van-cell title="封装形式" :value="selectedItem.package_type || '-'" />
-        <van-cell title="厂家规格" :value="selectedItem.spec || '-'" />
+        <van-cell title="规格" :value="selectedItem.spec || '-'" />
         <van-cell title="镀银区域" :value="selectedItem.plating_zone || '-'" />
         <van-cell title="表面粗化处理" :value="selectedItem.surface_treatment || '-'" />
         <van-cell title="生产厂家" :value="selectedItem.manufacturer || '-'" />

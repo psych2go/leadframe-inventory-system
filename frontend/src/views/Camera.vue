@@ -35,7 +35,7 @@
     <div v-if="ocrResult && !loading" class="result">
       <van-cell-group title="OCR 识别结果（可修改）">
         <van-field v-model="form.package_type" label="封装形式" placeholder="如 SOP、QFP、DIP" required />
-        <van-field v-model="form.spec" label="厂家规格" placeholder="厂家规格" required />
+        <van-field v-model="form.spec" label="规格" placeholder="请输入规格" required />
         <van-field
           v-model="form.plating_zone"
           is-link
@@ -52,6 +52,7 @@
           placeholder="请选择"
           @click="showSurfacePicker = true"
         />
+        <van-field v-model="ocrSpec" label="厂家规格" readonly placeholder="OCR识别" />
         <van-field v-model="form.batch_no" label="批号" placeholder="批号" required />
         <van-field v-model="form.quantity" label="数量(K)" placeholder="数量" required />
         <van-field v-model="form.manufacturer" label="生产厂家" placeholder="厂家名称" required />
@@ -116,11 +117,12 @@ const loading = ref(false)
 const submitting = ref(false)
 const ocrResult = ref(null)
 const imagePath = ref('')
+const ocrSpec = ref('')
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
 
-const platingOptions = ['单环镀', '双环镀']
-const surfaceOptions = ['CRC', 'SRC', 'ERC']
+const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }]
+const surfaceOptions = [{ text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }]
 
 const form = reactive({
   package_type: '',
@@ -135,12 +137,12 @@ const form = reactive({
   expiry_date: '',
 })
 
-function onPlatingConfirm({ selectedOptions }) {
-  form.plating_zone = selectedOptions[0]?.text || ''
+function onPlatingConfirm({ selectedValues }) {
+  form.plating_zone = selectedValues[0] || ''
   showPlatingPicker.value = false
 }
-function onSurfaceConfirm({ selectedOptions }) {
-  form.surface_treatment = selectedOptions[0]?.text || ''
+function onSurfaceConfirm({ selectedValues }) {
+  form.surface_treatment = selectedValues[0] || ''
   showSurfacePicker.value = false
 }
 
@@ -167,6 +169,7 @@ async function onFileRead(fileInfo) {
     ocrResult.value = result
     imagePath.value = result.image_path || ''
     if (result.parsed) {
+      ocrSpec.value = result.parsed.spec || ''
       form.spec = result.parsed.spec || ''
       form.batch_no = result.parsed.batch_no || ''
       form.quantity = result.parsed.quantity || ''

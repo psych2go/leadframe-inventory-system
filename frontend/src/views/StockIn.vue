@@ -4,7 +4,7 @@
 
     <van-cell-group>
       <van-field v-model="form.package_type" label="封装形式" placeholder="如 SOP、QFP、DIP" required />
-      <van-field v-model="form.spec" label="厂家规格" placeholder="请输入厂家规格" required />
+      <van-field v-model="form.spec" label="规格" placeholder="请输入规格" required />
       <van-field
         v-model="form.plating_zone"
         is-link
@@ -63,8 +63,8 @@ const submitting = ref(false)
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
 
-const platingOptions = ['单环镀', '双环镀']
-const surfaceOptions = ['CRC', 'SRC', 'ERC']
+const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }]
+const surfaceOptions = [{ text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }]
 
 const form = reactive({
   package_type: '', spec: '', plating_zone: '', surface_treatment: '',
@@ -72,12 +72,12 @@ const form = reactive({
   production_date: '', expiry_date: '',
 })
 
-function onPlatingConfirm({ selectedOptions }) {
-  form.plating_zone = selectedOptions[0]?.text || ''
+function onPlatingConfirm({ selectedValues }) {
+  form.plating_zone = selectedValues[0] || ''
   showPlatingPicker.value = false
 }
-function onSurfaceConfirm({ selectedOptions }) {
-  form.surface_treatment = selectedOptions[0]?.text || ''
+function onSurfaceConfirm({ selectedValues }) {
+  form.surface_treatment = selectedValues[0] || ''
   showSurfacePicker.value = false
 }
 

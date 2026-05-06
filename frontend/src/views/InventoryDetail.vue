@@ -8,7 +8,7 @@
 
     <van-cell-group title="基本信息">
       <van-cell title="封装形式" :value="item.package_type || '-'" />
-      <van-cell title="厂家规格" :value="item.spec || '-'" />
+      <van-cell title="规格" :value="item.spec || '-'" />
       <van-cell title="镀银区域" :value="item.plating_zone || '-'" />
       <van-cell title="表面粗化处理" :value="item.surface_treatment || '-'" />
       <van-cell title="生产厂家" :value="item.manufacturer || '-'" />

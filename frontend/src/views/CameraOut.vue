@@ -35,7 +35,7 @@
     <div v-if="ocrResult && !loading" class="result">
       <van-cell-group title="OCR 识别结果">
         <van-cell title="批号" :value="parsed.batch_no || '-'" />
-        <van-cell title="厂家规格" :value="parsed.spec || '-'" />
+        <van-cell title="规格" :value="parsed.spec || '-'" />
         <van-cell title="生产厂家" :value="parsed.manufacturer || '-'" />
       </van-cell-group>
 
@@ -65,7 +65,7 @@
         <div v-if="selectedItem" class="out-form">
           <van-cell-group title="已选库存">
             <van-cell title="封装形式" :value="selectedItem.package_type || '-'" />
-            <van-cell title="厂家规格" :value="selectedItem.spec || '-'" />
+            <van-cell title="规格" :value="selectedItem.spec || '-'" />
             <van-cell title="镀银区域" :value="selectedItem.plating_zone || '-'" />
             <van-cell title="表面粗化处理" :value="selectedItem.surface_treatment || '-'" />
             <van-cell title="生产厂家" :value="selectedItem.manufacturer || '-'" />
