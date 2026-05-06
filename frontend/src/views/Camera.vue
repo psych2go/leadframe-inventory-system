@@ -121,8 +121,8 @@ const ocrSpec = ref('')
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
 
-const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }]
-const surfaceOptions = [{ text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }]
+const platingOptions = [{ text: '无', value: '' }, { text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }]
+const surfaceOptions = [{ text: '无', value: '' }, { text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }]
 
 const form = reactive({
   package_type: '',
