@@ -4,7 +4,6 @@ import logging
 import tempfile
 
 from fastapi import APIRouter, UploadFile, File
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -17,6 +16,7 @@ MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB
 
 def _compress_for_ocr(image_path: str, max_size: int = 1024, quality: int = 70) -> str:
     """将图片压缩到指定尺寸，返回临时文件路径。用于减小传给 OCR API 的体积。"""
+    from PIL import Image
     img = Image.open(image_path)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
