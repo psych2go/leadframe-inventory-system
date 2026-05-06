@@ -6,8 +6,8 @@
 const isWecom = () => /wxwork/i.test(navigator.userAgent)
 
 /**
- * 压缩并转灰度图：最大宽度 500px，JPEG 质量 0.5
- * 先转为灰度再编码，省掉色度通道，JPEG 体积约再减 30%
+ * 压缩图片：最大宽度 500px，JPEG 质量 0.5
+ * 缩放直接走 Canvas + JPEG 编码，JPEG 自带色度子采样，体积已足够小
  */
 function compressImage(file) {
   return new Promise((resolve) => {
@@ -27,16 +27,6 @@ function compressImage(file) {
       canvas.height = Math.round(img.height * scale)
       const ctx = canvas.getContext('2d')
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-
-      // 转灰度：OCR 不需要颜色信息，去掉色度通道可压缩更小
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const pixels = imageData.data
-      for (let i = 0; i < pixels.length; i += 4) {
-        const gray = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]
-        pixels[i] = pixels[i + 1] = pixels[i + 2] = gray
-      }
-      ctx.putImageData(imageData, 0, 0)
-
       canvas.toBlob(
         (blob) => {
           resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
