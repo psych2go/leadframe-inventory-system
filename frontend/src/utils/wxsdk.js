@@ -11,8 +11,8 @@ const isWecom = () => /wxwork/i.test(navigator.userAgent)
  */
 function compressImage(file) {
   return new Promise((resolve) => {
-    const MAX_WIDTH = 800
-    const QUALITY = 0.6
+    const MAX_WIDTH = 600
+    const QUALITY = 0.5
     const img = new Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {

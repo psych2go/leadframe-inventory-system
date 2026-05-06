@@ -2,8 +2,6 @@ import os
 import re
 import base64
 import logging
-from datetime import datetime
-from typing import Optional
 from pathlib import Path
 
 import httpx
@@ -23,7 +21,7 @@ API_URL = os.environ.get("PADDOLEOCR_API_URL", "")
 TOKEN = os.environ.get("PADDOLEOCR_TOKEN", "")
 
 # 复用连接池，避免每次 OCR 请求都新建 TCP 连接
-_http_client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0))
+_http_client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=10.0))
 
 # 已知厂家名列表：(匹配模式列表, 标准名称)
 # 长名在前，避免短名误匹配
@@ -303,14 +301,13 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     return result
 
 
-async def recognize_image(image_path: str) -> dict:
+async def recognize_image(image_bytes: bytes) -> dict:
     """调用 PaddleOCR-VL-1.5 云端 API 对图片执行 OCR 识别"""
     if not TOKEN:
         return {"error": "未配置 PaddleOCR API TOKEN，请设置环境变量 PADDOLEOCR_TOKEN"}
 
     try:
-        with open(image_path, "rb") as f:
-            file_data = base64.b64encode(f.read()).decode("ascii")
+        file_data = base64.b64encode(image_bytes).decode("ascii")
 
         headers = {
             "Authorization": f"token {TOKEN}",

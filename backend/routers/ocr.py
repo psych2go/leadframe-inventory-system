@@ -1,4 +1,5 @@
 import os
+import asyncio
 import uuid
 import logging
 
@@ -26,20 +27,22 @@ async def ocr_recognize(file: UploadFile = File(...)):
     filename = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
 
-    with open(filepath, "wb") as f:
-        f.write(content)
-
     try:
         from ocr_service import recognize_image
-        # 前端已压缩，直接使用原图调 OCR
-        result = await recognize_image(filepath)
+        # 直接从内存 bytes 调 OCR，不阻塞读盘
+        result = await recognize_image(content)
+        # OCR 完成后异步存盘，不阻塞响应
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, _write_file, filepath, content)
         result["image_path"] = filename
         return result
     except Exception as e:
-        # OCR 失败时清理已上传的文件
-        try:
-            os.remove(filepath)
-        except OSError:
-            pass
         logger.error("OCR failed: %s", e)
         return {"error": str(e)}
+
+
+def _write_file(path: str, data: bytes):
+    """同步写文件（在 run_in_executor 中执行）"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(data)
