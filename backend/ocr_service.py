@@ -284,7 +284,8 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     if qty_raw:
         qty_raw = qty_raw.strip()
         if "/" in qty_raw:
-            qty_raw = qty_raw.split("/", 1)[0].strip()
+            parts = qty_raw.split("/", 1)
+            qty_raw = next((p.strip() for p in parts if re.search(r'\d\s*[kK]', p)), parts[-1].strip())
         result["quantity"] = _normalize_qty(qty_raw)
 
     # 生产日期

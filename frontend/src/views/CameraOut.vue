@@ -35,7 +35,7 @@
     <div v-if="ocrResult && !loading" class="result">
       <van-cell-group title="OCR 识别结果">
         <van-cell title="批号" :value="parsed.batch_no || '-'" />
-        <van-cell title="规格" :value="parsed.spec || '-'" />
+        <van-cell title="数量" :value="parsed.quantity || '-'" />
         <van-cell title="生产厂家" :value="parsed.manufacturer || '-'" />
       </van-cell-group>
 
@@ -89,7 +89,7 @@
       <van-empty v-else-if="searchDone" description="未找到匹配批号的库存记录" />
 
       <div class="submit-bar" v-if="!matchedItems.length && searchDone">
-        <van-button block @click="$router.push('/stock-out')">手动搜索出库</van-button>
+        <van-button block @click="$router.push({ path: '/stock-out', query: { search: [parsed.batch_no, parsed.spec].filter(Boolean).join(' ') } })">手动搜索出库</van-button>
       </div>
 
       <div class="raw-text" v-if="ocrResult.raw_text">
@@ -221,25 +221,13 @@ async function onFileRead(fileInfo) {
 }
 
 async function findMatchByBatch() {
-  if (!parsed.batch_no && !parsed.spec) {
+  if (!parsed.batch_no) {
     searchDone.value = true
     return
   }
   try {
-    // 先用批号搜索
-    let items = []
-    if (parsed.batch_no) {
-      const data = await getInventoryList(parsed.batch_no, 1, 100)
-      items = data.items || []
-      // 精确匹配批号
-      items = items.filter(i => i.batch_no === parsed.batch_no)
-    }
-    // 如果批号没匹配到，降级用厂家规格搜索
-    if (items.length === 0 && parsed.spec) {
-      const data = await getInventoryList(parsed.spec, 1, 100)
-      items = data.items || []
-      items = items.filter(i => i.spec === parsed.spec)
-    }
+    const data = await getInventoryList(parsed.batch_no, 1, 100)
+    const items = (data.items || []).filter(i => i.batch_no === parsed.batch_no)
     matchedItems.value = items
     if (items.length === 1) {
       selectedItem.value = items[0]

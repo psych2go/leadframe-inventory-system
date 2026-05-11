@@ -37,7 +37,8 @@
             </div>
           </template>
           <template #label>
-            <div>生产日期: {{ b.production_date || '-' }} | 有效期: {{ b.expiry_date || '-' }}</div>
+            <div>生产日期: {{ b.production_date || '-' }}</div>
+            <div>有效期: {{ b.expiry_date || '-' }}</div>
             <div v-if="b.note">备注: {{ b.note }}</div>
           </template>
           <template #value>

@@ -3,7 +3,7 @@
     <van-nav-bar title="出库" left-arrow @click-left="$router.back()" />
 
     <div v-if="!selectedBatch" class="search-area">
-      <van-search v-model="searchText" placeholder="搜索规格/批号" @search="doSearch" />
+      <van-search v-model="searchText" placeholder="搜索规格/批号" @search="doSearch" @clear="doSearch" />
 
       <template v-if="searchResults.length">
         <div class="group-section" v-for="group in searchResults" :key="group.package_type + group.spec + group.plating_zone + group.surface_treatment + group.manufacturer">
@@ -89,11 +89,17 @@ onMounted(async () => {
     try {
       selectedBatch.value = await getInventory(route.params.id)
     } catch (e) {}
+    return
   }
+  // 从拍照出库跳转时，带入搜索词并自动搜索
+  const q = route.query.search
+  if (q) {
+    searchText.value = q
+  }
+  doSearch()
 })
 
 async function doSearch() {
-  if (!searchText.value.trim()) return
   try {
     const data = await getInventoryGrouped(searchText.value.trim(), 1, 50)
     searchResults.value = data.items.map(g => ({ ...g, _batches: [] }))

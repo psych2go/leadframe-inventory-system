@@ -1,6 +1,6 @@
 <template>
   <div class="inventory-page">
-    <van-nav-bar title="库存导出" left-arrow @click-left="$router.back()">
+    <van-nav-bar title="库存" left-arrow @click-left="$router.back()">
       <template #right>
         <van-button size="small" type="success" icon="down" @click="doExport" :loading="exporting" class="export-nav-btn">导出Excel</van-button>
       </template>
