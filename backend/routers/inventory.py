@@ -247,15 +247,58 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
                 changes[k] = {"old": old_val, "new": new_val}
 
         with db.get_db() as conn:
-            set_clause = ", ".join(f"{k} = ?" for k in updates)
-            values = list(updates.values()) + [item_id]
             try:
+                set_clause = ", ".join(f"{k} = ?" for k in updates)
+                values = list(updates.values()) + [item_id]
                 conn.execute(
                     f"UPDATE inventory SET {set_clause}, updated_at = datetime('now','localtime') WHERE id = ?",
                     values,
                 )
             except sqlite3.IntegrityError:
-                raise HTTPException(400, "该组合已存在，不能重复")
+                # 编辑后与已有记录冲突，自动合并：数量累加到已有记录，删除当前记录
+                new_pkg = updates.get("package_type", item.get("package_type"))
+                new_spec = updates.get("spec", item.get("spec"))
+                new_plating = updates.get("plating_zone", item.get("plating_zone"))
+                new_surface = updates.get("surface_treatment", item.get("surface_treatment"))
+                new_batch = updates.get("batch_no", item.get("batch_no"))
+                new_mfr = updates.get("manufacturer", item.get("manufacturer"))
+                new_prod_date = updates.get("production_date", item.get("production_date"))
+                new_exp_date = updates.get("expiry_date", item.get("expiry_date"))
+
+                target = conn.execute(
+                    """SELECT id, quantity FROM inventory
+                       WHERE package_type = ? AND spec = ? AND plating_zone = ?
+                       AND surface_treatment = ? AND batch_no = ? AND id != ?""",
+                    (new_pkg, new_spec, new_plating, new_surface, new_batch, item_id),
+                ).fetchone()
+
+                if target:
+                    merged_qty = db._num_to_qty(
+                        db._qty_to_num(target["quantity"]) + db._qty_to_num(item["quantity"])
+                    )
+                    conn.execute(
+                        """UPDATE inventory SET quantity = ?, manufacturer = ?,
+                           production_date = ?, expiry_date = ?,
+                           updated_at = datetime('now','localtime') WHERE id = ?""",
+                        (merged_qty, new_mfr, new_prod_date, new_exp_date, target["id"]),
+                    )
+                    # 迁移 stock_log 到目标记录
+                    conn.execute(
+                        "UPDATE stock_log SET inventory_id = ? WHERE inventory_id = ?",
+                        (target["id"], item_id),
+                    )
+                    conn.execute("DELETE FROM inventory WHERE id = ?", (item_id,))
+                    db.write_audit(
+                        conn, user_id, user_name, "update", "inventory", target["id"],
+                        snapshot=item,
+                        changes={"merged_from": item_id, "quantity_added": item["quantity"], "merged_quantity": merged_qty},
+                        detail=f"合并记录 #{item_id} → #{target['id']}，数量累加后: {merged_qty}K",
+                        ip_address=request.client.host if request.client else None,
+                    )
+                    return {"message": "已自动合并到已有记录", "merged_into": target["id"]}
+                else:
+                    raise HTTPException(400, "该组合已存在，不能重复")
+
             # 审计：更新操作（只记录实际变更的字段）
             if changes:
                 db.write_audit(
@@ -289,6 +332,44 @@ def delete_inventory(item_id: int, request: Request):
 def get_stock_logs(inventory_id: int = None, page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100)):
     logs = db.stock_logs(inventory_id, page, size)
     return {"items": logs}
+
+
+@router.delete("/stock-logs/{log_id}")
+def delete_stock_log(log_id: int, request: Request):
+    user_id, user_name = _audit_user(request)
+    with db.get_db() as conn:
+        log = conn.execute("SELECT * FROM stock_log WHERE id = ?", (log_id,)).fetchone()
+        if not log:
+            raise HTTPException(404, "记录不存在")
+
+        inv = conn.execute("SELECT * FROM inventory WHERE id = ?", (log["inventory_id"],)).fetchone()
+        if not inv:
+            raise HTTPException(400, "关联的库存记录已不存在，无法撤销")
+
+        log_qty = db._qty_to_num(log["quantity"])
+        inv_qty = db._qty_to_num(inv["quantity"])
+
+        if log["type"] == "in":
+            if inv_qty < log_qty:
+                raise HTTPException(400, f"撤销入库会导致库存为负（当前: {inv['quantity']}K，需扣减: {log['quantity']}K）")
+            new_qty = db._num_to_qty(inv_qty - log_qty)
+        else:
+            new_qty = db._num_to_qty(inv_qty + log_qty)
+
+        conn.execute(
+            "UPDATE inventory SET quantity = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+            (new_qty, inv["id"]),
+        )
+        conn.execute("DELETE FROM stock_log WHERE id = ?", (log_id,))
+
+        action_desc = "撤销入库" if log["type"] == "in" else "撤销出库"
+        db.write_audit(
+            conn, user_id, user_name, "delete", "stock_log", log_id,
+            snapshot=dict(log),
+            detail=f"{action_desc}：{log['quantity']}K",
+            ip_address=request.client.host if request.client else None,
+        )
+    return {"message": "删除成功"}
 
 
 @router.get("/audit-logs")

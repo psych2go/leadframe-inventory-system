@@ -103,6 +103,11 @@ export async function getStockLogs(inventoryId = null, page = 1) {
   return data
 }
 
+export async function deleteStockLog(id) {
+  const { data } = await api.delete(`/stock-logs/${id}`)
+  return data
+}
+
 export async function getInventoryAlerts() {
   const { data } = await api.get('/inventory/alerts')
   return data

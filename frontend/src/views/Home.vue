@@ -17,7 +17,7 @@
             <van-icon name="bag-o" size="24" color="#1989fa" />
           </div>
           <div class="stat-content">
-            <span class="stat-value">{{ recentItems.length }}</span>
+            <span class="stat-value">{{ totalItems }}</span>
             <span class="stat-label">库存种类</span>
           </div>
         </div>
@@ -154,22 +154,27 @@
           <van-icon name="cross" size="20" color="#999" @click="showLogs = false" class="logs-close" />
         </div>
         <div class="logs-list">
-          <div class="log-item" v-for="log in stockLogs" :key="log.id">
-            <div class="log-icon">
-              <van-icon
-                :name="log.type === 'in' ? 'down' : 'upgrade'"
-                :color="log.type === 'in' ? '#07c160' : '#ee0a24'"
-                size="22"
-              />
+          <van-swipe-cell v-for="log in stockLogs" :key="log.id">
+            <div class="log-item">
+              <div class="log-icon">
+                <van-icon
+                  :name="log.type === 'in' ? 'down' : 'upgrade'"
+                  :color="log.type === 'in' ? '#07c160' : '#ee0a24'"
+                  size="22"
+                />
+              </div>
+              <div class="log-main">
+                <span class="log-title">{{ [log.package_type, log.spec, log.plating_zone, log.surface_treatment].filter(Boolean).join('-') || '-' }}</span>
+                <span class="log-time">{{ log.created_at }}</span>
+              </div>
+              <div class="log-qty" :class="log.type === 'in' ? 'text-green' : 'text-red'">
+                {{ log.type === 'in' ? '+' : '-' }}{{ log.quantity }}K
+              </div>
             </div>
-            <div class="log-main">
-              <span class="log-title">{{ [log.package_type, log.spec, log.plating_zone, log.surface_treatment].filter(Boolean).join('-') || '-' }}</span>
-              <span class="log-time">{{ log.created_at }}</span>
-            </div>
-            <div class="log-qty" :class="log.type === 'in' ? 'text-green' : 'text-red'">
-              {{ log.type === 'in' ? '+' : '-' }}{{ log.quantity }}K
-            </div>
-          </div>
+            <template #right>
+              <van-button square type="danger" text="删除" class="log-delete-btn" @click="onDeleteLog(log)" />
+            </template>
+          </van-swipe-cell>
           <van-empty v-if="!stockLogs.length" description="暂无记录" image="default" />
         </div>
       </div>
@@ -179,8 +184,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getInventoryList, getStockLogs, getInventoryAlerts } from '../api'
+import { getInventoryList, getStockLogs, getInventoryAlerts, deleteStockLog } from '../api'
 import { isLowStock } from '../utils/qty'
+import { showConfirmDialog, showSuccessToast, showToast } from 'vant'
 
 const LOW_STOCK_THRESHOLD = 2  // 单位: K（2K = 2000 只）
 
@@ -191,12 +197,14 @@ const alertItems = ref([])
 const threshold = ref(2)
 const alertExpanded = ref(true)
 const loading = ref(true)
+const totalItems = ref(0)
 
 onMounted(async () => {
   try {
     loading.value = true
     const data = await getInventoryList('', 1, 10)
     recentItems.value = data.items
+    totalItems.value = data.total
   } catch (e) {}
   finally {
     loading.value = false
@@ -218,6 +226,31 @@ async function loadAlerts() {
     alertItems.value = data.items
     threshold.value = data.threshold
   } catch (e) {}
+}
+
+async function onDeleteLog(log) {
+  const actionText = log.type === 'in' ? '入库' : '出库'
+  try {
+    await showConfirmDialog({
+      title: '确认删除',
+      message: `确定要撤销这条${actionText}记录吗？将${log.type === 'in' ? '从库存中扣减' : '归还到库存'} ${log.quantity}K。`,
+      confirmButtonColor: '#ee0a24',
+    })
+  } catch {
+    return
+  }
+  try {
+    await deleteStockLog(log.id)
+    showSuccessToast('删除成功')
+    stockLogs.value = stockLogs.value.filter(l => l.id !== log.id)
+    // 刷新库存数据
+    const invData = await getInventoryList('', 1, 10)
+    recentItems.value = invData.items
+    totalItems.value = invData.total
+    loadAlerts()
+  } catch (e) {
+    showToast(e.response?.data?.detail || '删除失败')
+  }
 }
 </script>
 
@@ -568,6 +601,9 @@ async function loadAlerts() {
 .log-qty {
   font-size: 16px;
   font-weight: 700;
+}
+.log-delete-btn {
+  height: 100%;
 }
 .text-green {
   color: #07c160;
