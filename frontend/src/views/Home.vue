@@ -57,8 +57,8 @@
           <div class="action-icon">
             <van-icon name="description" size="28" color="#1989fa" />
           </div>
-          <span class="action-text">库存导出</span>
-          <span class="action-desc">查看并导出数据</span>
+          <span class="action-text">库存查询</span>
+          <span class="action-desc">查看库存明细</span>
         </div>
         <div class="action-card action-logs" @click="showLogs = true">
           <div class="action-icon">
