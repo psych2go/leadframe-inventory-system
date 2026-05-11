@@ -111,41 +111,6 @@
       </div>
     </div>
 
-    <!-- 当前库存 -->
-    <div class="recent-section" v-if="recentItems.length">
-      <div class="section-title-bar">
-        <span class="section-title-text">当前库存</span>
-        <span class="section-action" @click="$router.push('/inventory')">
-          <van-icon name="search" size="14" />
-          查询
-        </span>
-      </div>
-      <div class="recent-list">
-        <div
-          class="recent-item"
-          v-for="item in recentItems.slice(0, 10)"
-          :key="item.id"
-          @click="$router.push(`/stock-out/${item.id}`)"
-        >
-          <div class="recent-item-main">
-            <span class="recent-item-title">{{ [item.package_type, item.spec, item.plating_zone, item.surface_treatment].filter(Boolean).join('-') || '-' }}</span>
-            <span class="recent-item-info">{{ item.manufacturer || '-' }}</span>
-            <span class="recent-item-note" v-if="item.note">{{ item.note }}</span>
-          </div>
-          <div class="recent-item-right">
-            <span class="recent-item-qty" :class="{ 'qty-low': isLowStock(item.quantity) }">
-              {{ item.quantity }}K
-              <van-tag v-if="isLowStock(item.quantity)" type="danger" size="small">预警</van-tag>
-            </span>
-            <van-icon name="arrow" size="12" color="#999" />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 空状态 -->
-    <van-empty v-if="!recentItems.length && !loading" description="暂无库存数据" image="search" />
-
     <!-- 出入库记录弹窗 -->
     <van-popup v-model:show="showLogs" position="bottom" :style="{ height: '70%' }" round>
       <div class="logs-popup">
@@ -184,31 +149,24 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getInventoryList, getStockLogs, getInventoryAlerts, deleteStockLog } from '../api'
+import { getInventoryGrouped, getStockLogs, getInventoryAlerts, deleteStockLog } from '../api'
 import { isLowStock } from '../utils/qty'
 import { showConfirmDialog, showSuccessToast, showToast } from 'vant'
 
 const LOW_STOCK_THRESHOLD = 2  // 单位: K（2K = 2000 只）
 
-const recentItems = ref([])
 const stockLogs = ref([])
 const showLogs = ref(false)
 const alertItems = ref([])
 const threshold = ref(2)
 const alertExpanded = ref(true)
-const loading = ref(true)
 const totalItems = ref(0)
 
 onMounted(async () => {
   try {
-    loading.value = true
-    const data = await getInventoryList('', 1, 10)
-    recentItems.value = data.items
+    const data = await getInventoryGrouped('', 1, 1)
     totalItems.value = data.total
   } catch (e) {}
-  finally {
-    loading.value = false
-  }
   loadLogs()
   loadAlerts()
 })
@@ -243,9 +201,8 @@ async function onDeleteLog(log) {
     await deleteStockLog(log.id)
     showSuccessToast('删除成功')
     stockLogs.value = stockLogs.value.filter(l => l.id !== log.id)
-    // 刷新库存数据
-    const invData = await getInventoryList('', 1, 10)
-    recentItems.value = invData.items
+    // 刷新统计
+    const invData = await getInventoryGrouped('', 1, 1)
     totalItems.value = invData.total
     loadAlerts()
   } catch (e) {
@@ -460,77 +417,6 @@ async function onDeleteLog(log) {
   justify-content: center;
   color: #999;
   font-size: 13px;
-}
-
-/* 当前库存 */
-.recent-section {
-  padding: 16px 16px 0;
-}
-.section-action {
-  font-size: 13px;
-  color: #1989fa;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-}
-.recent-list {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-.recent-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f5f5f5;
-  cursor: pointer;
-}
-.recent-item:last-child {
-  border-bottom: none;
-}
-.recent-item-main {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-}
-.recent-item-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-}
-.recent-item-info {
-  font-size: 12px;
-  color: #999;
-  margin-top: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.recent-item-note {
-  font-size: 11px;
-  color: #ff976a;
-  margin-top: 2px;
-}
-.recent-item-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 12px;
-}
-.recent-item-qty {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1989fa;
-}
-.recent-item-qty.qty-low {
-  color: #ee0a24;
 }
 
 /* 出入库记录弹窗 */

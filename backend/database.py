@@ -180,6 +180,52 @@ def inventory_list(search: str = None, page: int = 1, size: int = 20,
         return [dict(r) for r in rows], total, total_quantity
 
 
+def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
+                           package_type: str = None, spec: str = None,
+                           plating_zone: str = None, surface_treatment: str = None):
+    with get_db() as conn:
+        where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment)
+
+        rows = conn.execute(
+            f"""SELECT package_type, spec, plating_zone, surface_treatment, manufacturer,
+                       COUNT(*) as batch_count,
+                       COALESCE(SUM(CAST(quantity AS REAL)), 0) as total_quantity
+                FROM inventory WHERE 1=1{where}
+                GROUP BY package_type, spec, plating_zone, surface_treatment, manufacturer
+                ORDER BY MAX(updated_at) DESC
+                LIMIT ? OFFSET ?""",
+            params + [size, (page - 1) * size],
+        ).fetchall()
+
+        total = conn.execute(
+            f"""SELECT COUNT(*) as total FROM (
+                   SELECT 1 FROM inventory WHERE 1=1{where}
+                   GROUP BY package_type, spec, plating_zone, surface_treatment, manufacturer
+               )""",
+            params,
+        ).fetchone()["total"]
+
+        groups = []
+        for r in rows:
+            g = dict(r)
+            g["total_quantity"] = _num_to_qty(g["total_quantity"])
+            groups.append(g)
+        return groups, total
+
+
+def inventory_grouped_detail(package_type: str, spec: str, plating_zone: str,
+                              surface_treatment: str, manufacturer: str):
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT * FROM inventory
+               WHERE package_type = ? AND spec = ? AND plating_zone = ?
+               AND surface_treatment = ? AND manufacturer = ?
+               ORDER BY batch_no""",
+            (package_type, spec, plating_zone, surface_treatment, manufacturer),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def inventory_get(item_id: int):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM inventory WHERE id = ?", (item_id,)).fetchone()

@@ -13,11 +13,11 @@
     <!-- 筛选栏：始终可见，修改即搜 -->
     <div class="filter-bar">
       <div class="filter-row">
-        <div class="filter-chip" :class="{ active: filters.package_type }" @click="focusField('package_type')">
+        <div class="filter-chip" :class="{ active: filters.package_type }" @click="showPkgPicker = true">
           <span class="chip-label">封装形式</span>
           <span class="chip-val">{{ filters.package_type || '全部' }}</span>
         </div>
-        <div class="filter-chip" :class="{ active: filters.spec }" @click="focusField('spec')">
+        <div class="filter-chip" :class="{ active: filters.spec }" @click="showSpecPicker = true">
           <span class="chip-label">规格</span>
           <span class="chip-val">{{ filters.spec || '全部' }}</span>
         </div>
@@ -35,19 +35,13 @@
       </div>
     </div>
 
-    <!-- 弹出输入框（封装/规格） -->
-    <van-action-sheet v-model:show="showFieldSheet" :title="'输入' + activeFieldLabel">
-      <div class="field-sheet-body">
-        <van-field
-          v-model="activeFieldValue"
-          :placeholder="'输入' + activeFieldLabel"
-          clearable
-          autofocus
-          @input="onFieldInput"
-        />
-      </div>
-    </van-action-sheet>
-
+    <!-- 动态选项 Picker -->
+    <van-popup v-model:show="showPkgPicker" round position="bottom">
+      <van-picker :columns="pkgOptions" @confirm="onPkgConfirm" @cancel="showPkgPicker = false" />
+    </van-popup>
+    <van-popup v-model:show="showSpecPicker" round position="bottom">
+      <van-picker :columns="specOptions" @confirm="onSpecConfirm" @cancel="showSpecPicker = false" />
+    </van-popup>
     <van-popup v-model:show="showPlatingPicker" round position="bottom">
       <van-picker :columns="platingOptions" @confirm="onPlatingConfirm" @cancel="showPlatingPicker = false" />
     </van-popup>
@@ -57,18 +51,23 @@
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
       <van-list v-model:loading="loading" :finished="finished" @load="loadMore">
-        <van-swipe-cell v-for="item in items" :key="item.id">
+        <van-swipe-cell v-for="item in items" :key="item.package_type + item.spec + item.plating_zone + item.surface_treatment + item.manufacturer">
           <van-cell
             :title="[item.package_type, item.spec, item.plating_zone, item.surface_treatment].filter(Boolean).join('-') || '-'"
-            :label="`${item.manufacturer || '-'}`"
             is-link
-            @click="$router.push(`/inventory/${item.id}`)"
+            @click="goGroupedDetail(item)"
           >
+            <template #label>
+              <span>{{ item.manufacturer || '-' }}</span>
+            </template>
             <template #value>
-              <span :class="isLowStock(item.quantity) ? 'qty-alert' : 'qty'">
-                {{ item.quantity }}K
-                <van-tag v-if="isLowStock(item.quantity)" type="danger" size="medium">预警</van-tag>
-              </span>
+              <div class="item-right">
+                <span :class="isLowStock(item.total_quantity) ? 'qty-alert' : 'qty'">
+                  {{ item.total_quantity }}K
+                </span>
+                <van-tag type="primary" size="medium" class="batch-tag">{{ item.batch_count }}批次</van-tag>
+                <van-tag v-if="isLowStock(item.total_quantity)" type="danger" size="medium">预警</van-tag>
+              </div>
             </template>
           </van-cell>
           <template #right>
@@ -83,22 +82,23 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast, showDialog } from 'vant'
-import { getInventoryList, deleteInventory, exportInventory } from '../api'
+import { getInventoryGrouped, deleteInventory, exportInventory, getInventoryGroupedDetail, getFilterOptions } from '../api'
 import { isLowStock } from '../utils/qty'
 
+const router = useRouter()
 const searchText = ref('')
+loadFilterOptions()
 const items = ref([])
 const loading = ref(false)
 const finished = ref(false)
 const refreshing = ref(false)
 const exporting = ref(false)
+const showPkgPicker = ref(false)
+const showSpecPicker = ref(false)
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
-// 文本字段弹出输入
-const showFieldSheet = ref(false)
-const activeFieldKey = ref('')
-const activeFieldValue = ref('')
 let page = 1
 
 const filters = reactive({
@@ -108,6 +108,8 @@ const filters = reactive({
   surface_treatment: '',
 })
 
+const pkgOptions = ref([{ text: '全部', value: '' }])
+const specOptions = ref([{ text: '全部', value: '' }])
 const platingOptions = [
   { text: '全部', value: '' },
   { text: '单环镀', value: '单环镀' },
@@ -120,29 +122,27 @@ const surfaceOptions = [
   { text: 'ERC', value: 'ERC' },
 ]
 
-const fieldLabels = {
-  package_type: '封装形式',
-  spec: '规格',
-}
-
-const activeFieldLabel = computed(() => fieldLabels[activeFieldKey.value] || '')
-
 function platingLabel(v) { return v || '全部' }
 function surfaceLabel(v) { return v || '全部' }
 
-function focusField(key) {
-  activeFieldKey.value = key
-  activeFieldValue.value = filters[key] || ''
-  showFieldSheet.value = true
+async function loadFilterOptions() {
+  try {
+    const opts = await getFilterOptions()
+    pkgOptions.value = [{ text: '全部', value: '' }, ...opts.package_types.map(v => ({ text: v, value: v }))]
+    specOptions.value = [{ text: '全部', value: '' }, ...opts.specs.map(v => ({ text: v, value: v }))]
+  } catch (e) {}
 }
 
-let searchTimer = null
-function onFieldInput() {
-  filters[activeFieldKey.value] = activeFieldValue.value
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => loadData(), 300)
+function onPkgConfirm({ selectedValues }) {
+  filters.package_type = selectedValues[0] || ''
+  showPkgPicker.value = false
+  loadData()
 }
-
+function onSpecConfirm({ selectedValues }) {
+  filters.spec = selectedValues[0] || ''
+  showSpecPicker.value = false
+  loadData()
+}
 function onPlatingConfirm({ selectedValues }) {
   filters.plating_zone = selectedValues[0] || ''
   showPlatingPicker.value = false
@@ -166,6 +166,17 @@ function getFilterParams() {
   return params
 }
 
+function goGroupedDetail(item) {
+  const q = {
+    package_type: item.package_type || '',
+    spec: item.spec || '',
+    plating_zone: item.plating_zone || '',
+    surface_treatment: item.surface_treatment || '',
+    manufacturer: item.manufacturer || '',
+  }
+  router.push({ name: 'InventoryGroupedDetail', query: q })
+}
+
 async function loadData() {
   page = 1
   finished.value = false
@@ -175,7 +186,7 @@ async function loadData() {
 
 async function loadMore() {
   try {
-    const data = await getInventoryList(searchText.value, page, getFilterParams())
+    const data = await getInventoryGrouped(searchText.value, page, getFilterParams())
     if (page === 1) {
       items.value = data.items
     } else {
@@ -194,13 +205,8 @@ async function loadMore() {
   }
 }
 
-function onRefresh() {
-  loadData()
-}
-
-function onSearch() {
-  loadData()
-}
+function onRefresh() { loadData() }
+function onSearch() { loadData() }
 
 function resetFilters() {
   filters.package_type = ''
@@ -214,12 +220,22 @@ async function doDelete(item) {
   try {
     await showDialog({
       title: '确认删除',
-      message: `删除 ${item.spec}（批号: ${item.batch_no || '-'}）的所有库存记录？`,
+      message: `删除「${[item.package_type, item.spec, item.plating_zone, item.surface_treatment].filter(Boolean).join('-')}」的所有批次（共 ${item.batch_count} 批）？`,
       showCancelButton: true,
     })
-    await deleteInventory(item.id)
+    // 获取该分组下所有批次并逐条删除
+    const detail = await getInventoryGroupedDetail({
+      package_type: item.package_type,
+      spec: item.spec,
+      plating_zone: item.plating_zone,
+      surface_treatment: item.surface_treatment,
+      manufacturer: item.manufacturer,
+    })
+    for (const b of detail.batches) {
+      await deleteInventory(b.id)
+    }
     showSuccessToast('已删除')
-    items.value = items.value.filter(i => i.id !== item.id)
+    loadData()
   } catch (e) {
     if (e !== 'cancel') showToast('删除失败')
   }
@@ -250,109 +266,40 @@ async function doExport() {
   height: 32px;
   border-radius: 16px;
 }
-.search-bar {
-  padding: 8px 12px 0;
-}
+.search-bar { padding: 8px 12px 0; }
 .search-bar :deep(.van-search) {
   padding: 0;
   background: white;
   border-radius: 8px;
 }
-.search-bar :deep(.van-search__content) {
-  border-radius: 8px;
-}
-/* 筛选栏 - Chip 风格 */
-.filter-bar {
-  padding: 4px 12px 8px;
-}
-.filter-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+.search-bar :deep(.van-search__content) { border-radius: 8px; }
+.filter-bar { padding: 4px 12px 8px; }
+.filter-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .filter-chip {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  border-radius: 16px;
-  border: 1px solid #e0e0e0;
-  background: #fff;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-  flex: 1;
-  min-width: 0;
-  justify-content: center;
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 10px; border-radius: 16px;
+  border: 1px solid #e0e0e0; background: #fff;
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
+  flex: 1; min-width: 0; justify-content: center;
 }
-.filter-chip:active {
-  opacity: 0.7;
-}
-.filter-chip.active {
-  border-color: #1989fa;
-  background: #f0f9ff;
-}
-.chip-label {
-  color: #999;
-  white-space: nowrap;
-}
-.chip-val {
-  color: #333;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 80px;
-}
-.filter-chip.active .chip-val {
-  color: #1989fa;
-  font-weight: 500;
-}
-.filter-bar-bottom {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: 6px;
-}
-.filter-reset-link {
-  font-size: 12px;
-  color: #ee0a24;
-  cursor: pointer;
-}
-/* 弹出输入框 */
-.field-sheet-body {
-  padding: 16px;
-}
+.filter-chip:active { opacity: 0.7; }
+.filter-chip.active { border-color: #1989fa; background: #f0f9ff; }
+.chip-label { color: #999; white-space: nowrap; }
+.chip-val { color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80px; }
+.filter-chip.active .chip-val { color: #1989fa; font-weight: 500; }
+.filter-bar-bottom { display: flex; justify-content: flex-end; padding-top: 6px; }
+.filter-reset-link { font-size: 12px; color: #ee0a24; cursor: pointer; }
 .inventory-page :deep(.van-cell) {
-  margin: 8px 12px;
-  border-radius: 8px;
-  background: white;
-  padding: 12px 16px;
+  margin: 8px 12px; border-radius: 8px; background: white; padding: 12px 16px;
 }
-.inventory-page :deep(.van-swipe-cell) {
-  margin: 0 12px;
-}
-.inventory-page :deep(.van-swipe-cell__right) {
-  border-radius: 8px;
-}
-.delete-btn {
-  border-radius: 0 8px 8px 0;
-}
-.inventory-page :deep(.van-nav-bar) {
-  background: white;
-}
-.qty {
-  font-size: 16px;
-  font-weight: bold;
-  color: #1989fa;
-}
-.qty-alert {
-  font-size: 16px;
-  font-weight: bold;
-  color: #ee0a24;
-}
-.inventory-page :deep(.van-list) {
-  margin-top: 8px;
-}
-.inventory-page :deep(.van-empty) {
-  padding: 60px 0;
-}
+.inventory-page :deep(.van-swipe-cell) { margin: 0 12px; }
+.inventory-page :deep(.van-swipe-cell__right) { border-radius: 8px; }
+.delete-btn { border-radius: 0 8px 8px 0; }
+.inventory-page :deep(.van-nav-bar) { background: white; }
+.item-right { display: flex; align-items: center; gap: 6px; }
+.qty { font-size: 16px; font-weight: bold; color: #1989fa; }
+.qty-alert { font-size: 16px; font-weight: bold; color: #ee0a24; }
+.batch-tag { flex-shrink: 0; }
+.inventory-page :deep(.van-list) { margin-top: 8px; }
+.inventory-page :deep(.van-empty) { padding: 60px 0; }
 </style>

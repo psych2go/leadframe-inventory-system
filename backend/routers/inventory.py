@@ -76,6 +76,21 @@ def list_inventory(search: str = None,
 ALERT_THRESHOLD = 2  # 单位: K（2K = 2000 只）
 
 
+@router.get("/inventory/filter-options")
+def get_filter_options():
+    with db.get_db() as conn:
+        pkg_rows = conn.execute(
+            "SELECT DISTINCT package_type FROM inventory WHERE package_type != '' ORDER BY package_type"
+        ).fetchall()
+        spec_rows = conn.execute(
+            "SELECT DISTINCT spec FROM inventory WHERE spec != '' ORDER BY spec"
+        ).fetchall()
+    return {
+        "package_types": [r["package_type"] for r in pkg_rows],
+        "specs": [r["spec"] for r in spec_rows],
+    }
+
+
 @router.get("/inventory/alerts")
 def get_inventory_alerts():
     """获取低库存预警列表（数量 < 2K）"""
@@ -85,6 +100,41 @@ def get_inventory_alerts():
             (ALERT_THRESHOLD,),
         ).fetchall()
     return {"items": [dict(r) for r in rows], "threshold": ALERT_THRESHOLD}
+
+
+@router.get("/inventory-grouped")
+def list_inventory_grouped(search: str = None,
+                            package_type: str = None, spec: str = None,
+                            plating_zone: str = None, surface_treatment: str = None,
+                            page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100)):
+    groups, total = db.inventory_list_grouped(
+        search, page, size,
+        package_type=package_type, spec=spec,
+        plating_zone=plating_zone, surface_treatment=surface_treatment,
+    )
+    return {"items": groups, "total": total, "page": page, "size": size}
+
+
+@router.get("/inventory-grouped/detail")
+def get_inventory_grouped_detail(package_type: str = Query(""),
+                                  spec: str = Query(""),
+                                  plating_zone: str = Query(""),
+                                  surface_treatment: str = Query(""),
+                                  manufacturer: str = Query("")):
+    batches = db.inventory_grouped_detail(package_type, spec, plating_zone, surface_treatment, manufacturer)
+    if not batches:
+        raise HTTPException(404, "未找到匹配的库存记录")
+    total_qty = db._num_to_qty(sum(db._qty_to_num(b["quantity"]) for b in batches))
+    return {
+        "package_type": package_type,
+        "spec": spec,
+        "plating_zone": plating_zone,
+        "surface_treatment": surface_treatment,
+        "manufacturer": manufacturer,
+        "total_quantity": total_qty,
+        "batch_count": len(batches),
+        "batches": batches,
+    }
 
 
 @router.get("/inventory/export")

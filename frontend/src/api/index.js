@@ -73,6 +73,23 @@ export async function getInventoryList(search = '', page = 1, filters = {}) {
   return data
 }
 
+export async function getFilterOptions() {
+  const { data } = await api.get('/inventory/filter-options')
+  return data
+}
+
+export async function getInventoryGrouped(search = '', page = 1, filters = {}) {
+  const { data } = await api.get('/inventory-grouped', {
+    params: { search, page, ...filters },
+  })
+  return data
+}
+
+export async function getInventoryGroupedDetail(fields) {
+  const { data } = await api.get('/inventory-grouped/detail', { params: fields })
+  return data
+}
+
 export async function getInventory(id) {
   const { data } = await api.get(`/inventory/${id}`)
   return data
