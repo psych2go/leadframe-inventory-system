@@ -93,13 +93,24 @@ def get_filter_options():
 
 @router.get("/inventory/alerts")
 def get_inventory_alerts():
-    """获取低库存预警列表（数量 < 2K）"""
+    """获取低库存预警列表（分组总量 < 2K）"""
     with db.get_db() as conn:
         rows = conn.execute(
-            "SELECT * FROM inventory WHERE CAST(quantity AS REAL) < ? ORDER BY updated_at DESC",
+            """SELECT package_type, spec, plating_zone, surface_treatment, manufacturer,
+                      COUNT(*) as batch_count,
+                      COALESCE(SUM(CAST(quantity AS REAL)), 0) as total_quantity
+               FROM inventory
+               GROUP BY package_type, spec, plating_zone, surface_treatment, manufacturer
+               HAVING COALESCE(SUM(CAST(quantity AS REAL)), 0) < ?
+               ORDER BY total_quantity ASC""",
             (ALERT_THRESHOLD,),
         ).fetchall()
-    return {"items": [dict(r) for r in rows], "threshold": ALERT_THRESHOLD}
+        items = []
+        for r in rows:
+            g = dict(r)
+            g["total_quantity"] = db._num_to_qty(g["total_quantity"])
+            items.append(g)
+    return {"items": items, "threshold": ALERT_THRESHOLD}
 
 
 @router.get("/inventory-grouped")

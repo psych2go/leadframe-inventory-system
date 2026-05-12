@@ -87,16 +87,16 @@
       <div class="alert-list" v-if="alertExpanded">
         <div
           class="alert-item"
-          v-for="item in alertItems.slice(0, 5)"
-          :key="'alert-'+item.id"
-          @click="$router.push(`/stock-out/${item.id}`)"
+          v-for="(item, idx) in alertItems.slice(0, 5)"
+          :key="'alert-'+idx"
+          @click="goAlertDetail(item)"
         >
           <div class="alert-item-main">
             <span class="alert-item-title">{{ [item.package_type, item.spec, item.plating_zone, item.surface_treatment].filter(Boolean).join('-') || '-' }}</span>
             <span class="alert-item-info">{{ item.manufacturer || '-' }}</span>
           </div>
           <div class="alert-item-qty">
-            <span class="alert-qty-value">{{ item.quantity }}K</span>
+            <span class="alert-qty-value">{{ item.total_quantity }}K</span>
             <van-icon name="arrow" size="12" color="#ee0a24" />
           </div>
         </div>
@@ -184,6 +184,19 @@ async function loadAlerts() {
     alertItems.value = data.items
     threshold.value = data.threshold
   } catch (e) {}
+}
+
+function goAlertDetail(item) {
+  router.push({
+    name: 'InventoryGroupedDetail',
+    query: {
+      package_type: item.package_type || '',
+      spec: item.spec || '',
+      plating_zone: item.plating_zone || '',
+      surface_treatment: item.surface_treatment || '',
+      manufacturer: item.manufacturer || '',
+    },
+  })
 }
 
 async function onDeleteLog(log) {

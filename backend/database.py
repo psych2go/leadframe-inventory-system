@@ -46,8 +46,8 @@ def init_db():
                 quantity TEXT DEFAULT '0',
                 note TEXT,
                 image_path TEXT,
-                created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
-                updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
+                created_at TIMESTAMP DEFAULT (datetime('now','+8 hours')),
+                updated_at TIMESTAMP DEFAULT (datetime('now','+8 hours')),
                 UNIQUE(package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)
             )
         """)
@@ -72,8 +72,8 @@ def init_db():
                     quantity TEXT DEFAULT '0',
                     note TEXT,
                     image_path TEXT,
-                    created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
-                    updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
+                    created_at TIMESTAMP DEFAULT (datetime('now','+8 hours')),
+                    updated_at TIMESTAMP DEFAULT (datetime('now','+8 hours')),
                     UNIQUE(package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)
                 );
                 INSERT INTO inventory_new (id, spec, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path, created_at, updated_at)
@@ -103,8 +103,8 @@ def init_db():
                     quantity TEXT DEFAULT '0',
                     note TEXT,
                     image_path TEXT,
-                    created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
-                    updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
+                    created_at TIMESTAMP DEFAULT (datetime('now','+8 hours')),
+                    updated_at TIMESTAMP DEFAULT (datetime('now','+8 hours')),
                     UNIQUE(package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)
                 );
                 INSERT OR IGNORE INTO inventory_new
@@ -121,7 +121,7 @@ def init_db():
                 quantity INTEGER NOT NULL,
                 note TEXT,
                 operator TEXT,
-                created_at TIMESTAMP DEFAULT (datetime('now','localtime'))
+                created_at TIMESTAMP DEFAULT (datetime('now','+8 hours'))
             )
         """)
         conn.execute("""
@@ -146,7 +146,7 @@ def init_db():
                 changes TEXT,
                 detail TEXT,
                 ip_address TEXT,
-                created_at TIMESTAMP DEFAULT (datetime('now','localtime'))
+                created_at TIMESTAMP DEFAULT (datetime('now','+8 hours'))
             )
         """)
         conn.execute("""
@@ -268,7 +268,7 @@ def inventory_update_grouped(old_fields: dict, new_fields: dict):
         conn.execute(
             """UPDATE inventory SET package_type = ?, spec = ?, plating_zone = ?,
                surface_treatment = ?, manufacturer = ?,
-               updated_at = datetime('now','localtime')
+               updated_at = datetime('now','+8 hours')
                WHERE package_type = ? AND spec = ? AND plating_zone = ?
                AND surface_treatment = ? AND manufacturer = ?""",
             (new_fields.get('package_type', ''), new_fields.get('spec', ''),
@@ -325,7 +325,7 @@ def stock_in(package_type: str, spec: str, plating_zone: str, surface_treatment:
                 """UPDATE inventory SET quantity = ?, plating_zone = ?, surface_treatment = ?,
                    manufacturer = ?, production_date = ?, expiry_date = ?,
                    note = COALESCE(?, note), image_path = COALESCE(?, image_path),
-                   updated_at = datetime('now','localtime') WHERE id = ?""",
+                   updated_at = datetime('now','+8 hours') WHERE id = ?""",
                 (new_qty, plating_zone, surface_treatment,
                  manufacturer, production_date, expiry_date, note, image_path, existing["id"])
             )
@@ -368,7 +368,7 @@ def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str 
 
         new_qty = _num_to_qty(current_num - out_num)
         conn.execute(
-            "UPDATE inventory SET quantity = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+            "UPDATE inventory SET quantity = ?, updated_at = datetime('now','+8 hours') WHERE id = ?",
             (new_qty, inventory_id)
         )
         conn.execute(
