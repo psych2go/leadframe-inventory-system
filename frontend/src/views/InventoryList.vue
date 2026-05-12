@@ -1,6 +1,6 @@
 <template>
   <div class="inventory-page">
-    <van-nav-bar title="库存" left-arrow @click-left="$router.back()">
+    <van-nav-bar :title="isAlertMode ? '低库存项' : '库存'" left-arrow @click-left="$router.back()">
       <template #right>
         <van-button size="small" type="success" icon="down" @click="doExport" :loading="exporting" class="export-nav-btn">导出Excel</van-button>
       </template>
@@ -65,8 +65,10 @@
                 <span :class="isLowStock(item.total_quantity) ? 'qty-alert' : 'qty'">
                   {{ item.total_quantity }}K
                 </span>
-                <van-tag type="primary" size="medium" class="batch-tag">{{ item.batch_count }}批次</van-tag>
-                <van-tag v-if="isLowStock(item.total_quantity)" type="danger" size="medium">预警</van-tag>
+                <div class="item-tags">
+                  <van-tag type="primary" size="medium" class="batch-tag">{{ item.batch_count }}批次</van-tag>
+                  <van-tag v-if="isLowStock(item.total_quantity)" type="danger" size="medium">预警</van-tag>
+                </div>
               </div>
             </template>
           </van-cell>
@@ -82,12 +84,14 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { showToast, showSuccessToast, showDialog } from 'vant'
 import { getInventoryGrouped, deleteInventory, exportInventory, getInventoryGroupedDetail, getFilterOptions } from '../api'
 import { isLowStock } from '../utils/qty'
 
 const router = useRouter()
+const route = useRoute()
+const isAlertMode = !!route.query.alert
 const searchText = ref('')
 loadFilterOptions()
 const items = ref([])
@@ -186,7 +190,7 @@ async function loadData() {
 
 async function loadMore() {
   try {
-    const data = await getInventoryGrouped(searchText.value, page, getFilterParams())
+    const data = await getInventoryGrouped(searchText.value, page, getFilterParams(), isAlertMode)
     if (page === 1) {
       items.value = data.items
     } else {
@@ -292,11 +296,16 @@ async function doExport() {
 .inventory-page :deep(.van-cell) {
   margin: 8px 12px; border-radius: 8px; background: white; padding: 12px 16px;
 }
+.inventory-page :deep(.van-cell__value) {
+  flex: none;
+  text-align: right;
+}
 .inventory-page :deep(.van-swipe-cell) { margin: 0 12px; }
 .inventory-page :deep(.van-swipe-cell__right) { border-radius: 8px; }
 .delete-btn { border-radius: 0 8px 8px 0; }
 .inventory-page :deep(.van-nav-bar) { background: white; }
-.item-right { display: flex; align-items: center; gap: 6px; }
+.item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 80px; }
+.item-tags { display: flex; gap: 4px; }
 .qty { font-size: 16px; font-weight: bold; color: #1989fa; }
 .qty-alert { font-size: 16px; font-weight: bold; color: #ee0a24; }
 .batch-tag { flex-shrink: 0; }

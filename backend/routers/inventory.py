@@ -106,11 +106,13 @@ def get_inventory_alerts():
 def list_inventory_grouped(search: str = None,
                             package_type: str = None, spec: str = None,
                             plating_zone: str = None, surface_treatment: str = None,
+                            alert: bool = Query(False),
                             page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100)):
     groups, total = db.inventory_list_grouped(
         search, page, size,
         package_type=package_type, spec=spec,
         plating_zone=plating_zone, surface_treatment=surface_treatment,
+        alert_only=alert,
     )
     return {"items": groups, "total": total, "page": page, "size": size}
 
@@ -135,6 +137,20 @@ def get_inventory_grouped_detail(package_type: str = Query(""),
         "batch_count": len(batches),
         "batches": batches,
     }
+
+
+@router.put("/inventory-grouped/update")
+def update_inventory_grouped(body: dict):
+    old = body.get("old", {})
+    new = body.get("new", {})
+    required = ["package_type", "spec", "plating_zone", "surface_treatment", "manufacturer"]
+    for k in required:
+        if k not in old:
+            raise HTTPException(400, f"缺少原始字段: {k}")
+    if not new:
+        raise HTTPException(400, "缺少更新内容")
+    db.inventory_update_grouped(old, new)
+    return {"detail": "更新成功"}
 
 
 @router.get("/inventory/export")

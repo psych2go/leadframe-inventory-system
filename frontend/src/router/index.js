@@ -8,6 +8,7 @@ import InventoryList from '../views/InventoryList.vue'
 import InventoryDetail from '../views/InventoryDetail.vue'
 import InventoryEdit from '../views/InventoryEdit.vue'
 import InventoryGroupedDetail from '../views/InventoryGroupedDetail.vue'
+import InventoryGroupedEdit from '../views/InventoryGroupedEdit.vue'
 import AuditLogs from '../views/AuditLogs.vue'
 import Login from '../views/Login.vue'
 
@@ -20,6 +21,7 @@ const routes = [
   { path: '/stock-out/:id?', name: 'StockOut', component: StockOut },
   { path: '/inventory', name: 'InventoryList', component: InventoryList },
   { path: '/inventory-grouped', name: 'InventoryGroupedDetail', component: InventoryGroupedDetail },
+  { path: '/inventory-grouped/edit', name: 'InventoryGroupedEdit', component: InventoryGroupedEdit },
   { path: '/inventory/:id', name: 'InventoryDetail', component: InventoryDetail },
   { path: '/inventory/:id/edit', name: 'InventoryEdit', component: InventoryEdit },
   { path: '/audit-logs', name: 'AuditLogs', component: AuditLogs },

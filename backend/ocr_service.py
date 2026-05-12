@@ -1,7 +1,8 @@
 import os
 import re
-import base64
+import json
 import logging
+import asyncio
 from pathlib import Path
 
 import httpx
@@ -19,9 +20,10 @@ logger = logging.getLogger(__name__)
 
 API_URL = os.environ.get("PADDOLEOCR_API_URL", "")
 TOKEN = os.environ.get("PADDOLEOCR_TOKEN", "")
+MODEL = os.environ.get("PADDOLEOCR_MODEL", "PP-OCRv5")
 
-# 复用连接池，避免每次 OCR 请求都新建 TCP 连接
-_http_client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=10.0))
+# 复用连接池，轮询场景需要较长超时
+_http_client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0))
 
 
 async def close_http_client():
@@ -311,55 +313,85 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
 
 
 async def recognize_image(image_bytes: bytes) -> dict:
-    """调用 PaddleOCR-VL-1.5 云端 API 对图片执行 OCR 识别"""
+    """调用 PaddleOCR PP-OCRv5 异步 API 对图片执行 OCR 识别"""
     if not TOKEN:
         return {"error": "未配置 PaddleOCR API TOKEN，请设置环境变量 PADDOLEOCR_TOKEN"}
 
     try:
-        file_data = base64.b64encode(image_bytes).decode("ascii")
+        headers = {"Authorization": f"bearer {TOKEN}"}
 
-        headers = {
-            "Authorization": f"token {TOKEN}",
-            "Content-Type": "application/json",
+        # 第一步：提交 OCR 任务
+        data = {
+            "model": MODEL,
+            "optionalPayload": json.dumps({
+                "markdownIgnoreLabels": [],
+                "useDocOrientationClassify": True,
+                "useDocUnwarping": True,
+                "useTextlineOrientation": True,
+                "textDetLimitType": "min",
+                "textDetLimitSideLen": 64,
+                "textDetThresh": 0.3,
+                "textDetBoxThresh": 0.6,
+                "textDetUnclipRatio": 1.5,
+                "textRecScoreThresh": 0,
+                "parseLanguage": "default",
+            }),
         }
+        files = {"file": ("image.jpg", image_bytes, "image/jpeg")}
 
-        payload = {
-            "file": file_data,
-            "fileType": 1,
-            "useDocOrientationClassify": False,
-            "useDocUnwarping": False,
-            "useLayoutDetection": False,
-            "useChartRecognition": False,
-            "prettifyMarkdown": False,
-        }
-
-        # 连接超时 10 秒，读取超时 120 秒（PaddleOCR 冷启动可能较慢）
-        response = await _http_client.post(API_URL, json=payload, headers=headers)
+        response = await _http_client.post(API_URL, headers=headers, data=data, files=files)
 
         if response.status_code != 200:
-            logger.error("PaddleOCR API error: %s %s", response.status_code, response.text)
-            return {"error": f"OCR 服务返回错误: {response.status_code}"}
+            logger.error("PaddleOCR submit error: %s %s", response.status_code, response.text)
+            return {"error": f"OCR 提交失败: {response.status_code}"}
 
-        resp_json = response.json()
-        if resp_json.get("errorCode", -1) != 0:
-            logger.error("PaddleOCR API error: %s", resp_json.get('errorMsg', 'unknown'))
-            return {"error": f"OCR 服务错误: {resp_json.get('errorMsg', '未知错误')}"}
+        job_id = response.json()["data"]["jobId"]
+        logger.info("OCR job submitted: %s", job_id)
 
-        result_data = resp_json["result"]
-        markdown_texts = []
-        for page in result_data.get("layoutParsingResults", []):
-            md = page.get("markdown", {})
-            if md.get("text"):
-                markdown_texts.append(md["text"])
+        # 第二步：轮询任务状态
+        poll_url = f"{API_URL}/{job_id}"
+        max_attempts = 60  # 最多轮询 60 次，每次 3 秒 = 最多 3 分钟
+        for _ in range(max_attempts):
+            await asyncio.sleep(3)
+            poll_resp = await _http_client.get(poll_url, headers=headers)
+            if poll_resp.status_code != 200:
+                logger.warning("OCR poll error: %s", poll_resp.status_code)
+                continue
+            state = poll_resp.json()["data"]["state"]
+            if state == "done":
+                break
+            if state == "failed":
+                error_msg = poll_resp.json()["data"].get("errorMsg", "未知错误")
+                logger.error("OCR job failed: %s", error_msg)
+                return {"error": f"OCR 识别失败: {error_msg}"}
+        else:
+            return {"error": "OCR 识别超时，请重试"}
 
-        full_markdown = "\n".join(markdown_texts)
+        # 第三步：获取结果
+        jsonl_url = poll_resp.json()["data"]["resultUrl"]["jsonUrl"]
+        jsonl_resp = await _http_client.get(jsonl_url)
+        jsonl_resp.raise_for_status()
 
-        # 去除 HTML 标签和图片引用，只保留纯文本
-        clean_raw = re.sub(r"<[^>]+>", "", full_markdown)
+        # 解析 JSONL 结果，拼接所有页面的 OCR 文本
+        ocr_texts = []
+        for line in jsonl_resp.text.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            result = json.loads(line).get("result", {})
+            for res in result.get("ocrResults", []):
+                text = res.get("text", "")
+                if text:
+                    ocr_texts.append(text)
+
+        full_text = "\n".join(ocr_texts)
+
+        # 去除 HTML 标签和图片引用
+        clean_raw = re.sub(r"<[^>]+>", "", full_text)
         clean_raw = re.sub(r"!\[.*?\]\(.*?\)", "", clean_raw)
         clean_raw = re.sub(r"\n{3,}", "\n\n", clean_raw).strip()
 
-        parsed = parse_ocr_markdown(full_markdown)
+        parsed = parse_ocr_markdown(full_text)
         parsed["manufacturer"] = _resolve_manufacturer(clean_raw, parsed.get("manufacturer", ""))
 
         # AAMI 专用规格提取规则

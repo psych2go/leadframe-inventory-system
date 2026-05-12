@@ -103,7 +103,7 @@
         <div
           class="alert-item alert-more"
           v-if="alertItems.length > 5"
-          @click="$router.push('/inventory')"
+          @click="$router.push('/inventory?alert=1')"
         >
           <span>查看更多低库存项...</span>
           <van-icon name="arrow" size="12" color="#999" />

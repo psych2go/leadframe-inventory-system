@@ -78,15 +78,20 @@ export async function getFilterOptions() {
   return data
 }
 
-export async function getInventoryGrouped(search = '', page = 1, filters = {}) {
+export async function getInventoryGrouped(search = '', page = 1, filters = {}, alert = false) {
   const { data } = await api.get('/inventory-grouped', {
-    params: { search, page, ...filters },
+    params: { search, page, ...filters, ...(alert ? { alert: true } : {}) },
   })
   return data
 }
 
 export async function getInventoryGroupedDetail(fields) {
   const { data } = await api.get('/inventory-grouped/detail', { params: fields })
+  return data
+}
+
+export async function updateInventoryGrouped(oldFields, newFields) {
+  const { data } = await api.put('/inventory-grouped/update', { old: oldFields, new: newFields })
   return data
 }
 

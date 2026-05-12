@@ -1,6 +1,10 @@
 <template>
   <div class="grouped-detail">
-    <van-nav-bar title="库存详情" left-arrow @click-left="$router.back()" />
+    <van-nav-bar title="库存详情" left-arrow @click-left="$router.back()">
+      <template #right>
+        <van-icon name="edit" size="18" @click="onEdit" />
+      </template>
+    </van-nav-bar>
 
     <van-cell-group title="基本信息">
       <van-cell title="封装形式" :value="info.package_type || '-'" />
@@ -33,7 +37,7 @@
           <template #title>
             <div class="batch-title">
               <span>批号: {{ b.batch_no || '-' }}</span>
-              <van-tag v-if="isLowStock(b.quantity)" type="danger" size="small">预警</van-tag>
+              <van-tag v-if="isLowStock(info.total_quantity)" type="danger" size="small">预警</van-tag>
             </div>
           </template>
           <template #label>
@@ -42,7 +46,7 @@
             <div v-if="b.note">备注: {{ b.note }}</div>
           </template>
           <template #value>
-            <span :class="isLowStock(b.quantity) ? 'qty-alert' : 'qty'">{{ b.quantity }}K</span>
+            <span :class="isLowStock(info.total_quantity) ? 'qty-alert' : 'qty'">{{ b.quantity }}K</span>
           </template>
         </van-cell>
         <template #right>
@@ -123,6 +127,20 @@ async function loadData() {
   } catch (e) {
     showToast('获取详情失败')
   }
+}
+
+function onEdit() {
+  const q = route.query
+  router.push({
+    name: 'InventoryGroupedEdit',
+    query: {
+      package_type: q.package_type || '',
+      spec: q.spec || '',
+      plating_zone: q.plating_zone || '',
+      surface_treatment: q.surface_treatment || '',
+      manufacturer: q.manufacturer || '',
+    },
+  })
 }
 
 async function onDeleteBatch(b) {

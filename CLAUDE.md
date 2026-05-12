@@ -69,15 +69,15 @@ SQLite，文件 `backend/inventory.db`。
 ## OCR 流程
 
 1. 前端拍照/选图（企微内用 JS-SDK `wx.chooseImage`，非企微用 HTML input）→ 自动压缩图片（最大宽度 1600px，JPEG 质量 80%）→ POST /api/ocr（multipart/form-data，限制 20MB）
-2. 后端保存图片到 uploads/ → base64 编码 → 调用 PaddleOCR-VL-1.5 云端 API
-3. API 返回 `result.layoutParsingResults[].markdown.text`（Markdown 文本）
-4. `parse_ocr_markdown()` 用正则从 Markdown 中提取字段（厂家、规格、批号、数量、日期等）
+2. 后端保存图片到 uploads/ → 调用 PaddleOCR PP-OCRv5 异步 API（提交任务 → 轮询 → 取 JSONL 结果）
+3. API 返回 JSONL 格式的 OCR 文本结果
+4. `parse_ocr_markdown()` 用正则从文本中提取字段（厂家、规格、批号、数量、日期等）
 5. 厂家名归一化（`_resolve_manufacturer`），AAMI 厂家专用规格提取（`_resolve_aami_spec`）
 6. 数量统一转 K 单位（`_normalize_qty`：支持 PCS/只/万/K/M）
 7. 日期格式统一为 YYYY-MM-DD（`_normalize_date`：支持中英文各种格式）
 8. 返回 raw_text + parsed 给前端，用户可在 Camera.vue 中手动修正后确认入库
 
-OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_API_URL`、`PADDOLEOCR_TOKEN`。
+OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_API_URL`、`PADDOLEOCR_TOKEN`、`PADDOLEOCR_MODEL`。
 
 ## 企微集成
 

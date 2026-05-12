@@ -48,7 +48,7 @@ def init_db():
                 image_path TEXT,
                 created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
                 updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
-                UNIQUE(package_type, spec, plating_zone, surface_treatment, batch_no)
+                UNIQUE(package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)
             )
         """)
 
@@ -74,10 +74,41 @@ def init_db():
                     image_path TEXT,
                     created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
                     updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
-                    UNIQUE(package_type, spec, plating_zone, surface_treatment, batch_no)
+                    UNIQUE(package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)
                 );
                 INSERT INTO inventory_new (id, spec, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path, created_at, updated_at)
                     SELECT id, spec, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path, created_at, updated_at FROM inventory;
+                DROP TABLE inventory;
+                ALTER TABLE inventory_new RENAME TO inventory;
+            """)
+            conn.execute("PRAGMA foreign_keys=ON")
+
+        # 迁移：唯一约束加入 manufacturer
+        cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='inventory'")
+        table_sql = cursor.fetchone()
+        if table_sql and 'manufacturer' not in table_sql["sql"].split("UNIQUE")[1].split(")")[0]:
+            conn.execute("PRAGMA foreign_keys=OFF")
+            conn.executescript("""
+                DROP TABLE IF EXISTS inventory_new;
+                CREATE TABLE inventory_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    package_type TEXT NOT NULL DEFAULT '',
+                    spec TEXT NOT NULL DEFAULT '',
+                    plating_zone TEXT NOT NULL DEFAULT '',
+                    surface_treatment TEXT NOT NULL DEFAULT '',
+                    manufacturer TEXT,
+                    batch_no TEXT,
+                    production_date TEXT,
+                    expiry_date TEXT,
+                    quantity TEXT DEFAULT '0',
+                    note TEXT,
+                    image_path TEXT,
+                    created_at TIMESTAMP DEFAULT (datetime('now','localtime')),
+                    updated_at TIMESTAMP DEFAULT (datetime('now','localtime')),
+                    UNIQUE(package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)
+                );
+                INSERT OR IGNORE INTO inventory_new
+                    SELECT * FROM inventory;
                 DROP TABLE inventory;
                 ALTER TABLE inventory_new RENAME TO inventory;
             """)
@@ -182,9 +213,12 @@ def inventory_list(search: str = None, page: int = 1, size: int = 20,
 
 def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
                            package_type: str = None, spec: str = None,
-                           plating_zone: str = None, surface_treatment: str = None):
+                           plating_zone: str = None, surface_treatment: str = None,
+                           alert_only: bool = False):
     with get_db() as conn:
         where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment)
+
+        having = " HAVING COALESCE(SUM(CAST(quantity AS REAL)), 0) < 2" if alert_only else ""
 
         rows = conn.execute(
             f"""SELECT package_type, spec, plating_zone, surface_treatment, manufacturer,
@@ -192,6 +226,7 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
                        COALESCE(SUM(CAST(quantity AS REAL)), 0) as total_quantity
                 FROM inventory WHERE 1=1{where}
                 GROUP BY package_type, spec, plating_zone, surface_treatment, manufacturer
+                {having}
                 ORDER BY MAX(updated_at) DESC
                 LIMIT ? OFFSET ?""",
             params + [size, (page - 1) * size],
@@ -201,6 +236,7 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
             f"""SELECT COUNT(*) as total FROM (
                    SELECT 1 FROM inventory WHERE 1=1{where}
                    GROUP BY package_type, spec, plating_zone, surface_treatment, manufacturer
+                   {having}
                )""",
             params,
         ).fetchone()["total"]
@@ -224,6 +260,25 @@ def inventory_grouped_detail(package_type: str, spec: str, plating_zone: str,
             (package_type, spec, plating_zone, surface_treatment, manufacturer),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def inventory_update_grouped(old_fields: dict, new_fields: dict):
+    """批量更新一个分组的公共基本信息字段"""
+    with get_connection() as conn:
+        conn.execute(
+            """UPDATE inventory SET package_type = ?, spec = ?, plating_zone = ?,
+               surface_treatment = ?, manufacturer = ?,
+               updated_at = datetime('now','localtime')
+               WHERE package_type = ? AND spec = ? AND plating_zone = ?
+               AND surface_treatment = ? AND manufacturer = ?""",
+            (new_fields.get('package_type', ''), new_fields.get('spec', ''),
+             new_fields.get('plating_zone', ''), new_fields.get('surface_treatment', ''),
+             new_fields.get('manufacturer', ''),
+             old_fields['package_type'], old_fields['spec'],
+             old_fields['plating_zone'], old_fields['surface_treatment'],
+             old_fields['manufacturer']),
+        )
+        conn.commit()
 
 
 def inventory_get(item_id: int):
@@ -259,8 +314,8 @@ def stock_in(package_type: str, spec: str, plating_zone: str, surface_treatment:
         existing = conn.execute(
             """SELECT id, quantity FROM inventory
                WHERE package_type = ? AND spec = ? AND plating_zone = ?
-               AND surface_treatment = ? AND batch_no = ?""",
-            (package_type, spec, plating_zone, surface_treatment, batch_no)
+               AND surface_treatment = ? AND manufacturer = ? AND batch_no = ?""",
+            (package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)
         ).fetchone()
 
         if existing:
