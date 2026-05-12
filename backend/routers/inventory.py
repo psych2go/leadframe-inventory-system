@@ -168,7 +168,7 @@ def update_inventory_grouped(body: dict):
 def export_inventory(search: str = None,
                      package_type: str = None, spec: str = None,
                      plating_zone: str = None, surface_treatment: str = None):
-    """导出库存为 Excel 文件"""
+    """导出库存为 Excel 文件（两个 sheet：汇总 + 明细）"""
     import openpyxl
 
     with db.get_db() as conn:
@@ -181,14 +181,30 @@ def export_inventory(search: str = None,
         ).fetchall()
 
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "库存清单"
 
-    headers = ["封装形式", "规格", "镀银区域", "表面粗化处理", "厂家", "批号", "生产日期", "有效期", "数量", "备注"]
-    ws.append(headers)
-
+    # Sheet 1: 汇总（按分组聚合，无批号/日期/备注）
+    ws1 = wb.active
+    ws1.title = "库存汇总"
+    ws1.append(["封装形式", "规格", "镀银区域", "表面粗化处理", "厂家", "总数量(K)", "批次数"])
+    groups = {}
     for row in rows:
-        ws.append([
+        key = (row["package_type"], row["spec"], row["plating_zone"],
+               row["surface_treatment"], row["manufacturer"])
+        if key not in groups:
+            groups[key] = {"qty": 0, "count": 0}
+        groups[key]["qty"] += db._qty_to_num(row["quantity"])
+        groups[key]["count"] += 1
+    for (pt, sp, pz, st, mf), g in groups.items():
+        ws1.append([pt, sp, pz, st, mf, db._num_to_qty(g["qty"]), g["count"]])
+    for col in ws1.columns:
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        ws1.column_dimensions[col[0].column_letter].width = min(max_len + 4, 30)
+
+    # Sheet 2: 明细（完整字段）
+    ws2 = wb.create_sheet("库存明细")
+    ws2.append(["封装形式", "规格", "镀银区域", "表面粗化处理", "厂家", "批号", "生产日期", "有效期", "数量", "备注"])
+    for row in rows:
+        ws2.append([
             row["package_type"],
             row["spec"],
             row["plating_zone"],
@@ -200,10 +216,9 @@ def export_inventory(search: str = None,
             row["quantity"],
             row["note"] or "",
         ])
-
-    for col in ws.columns:
+    for col in ws2.columns:
         max_len = max(len(str(cell.value or "")) for cell in col)
-        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 30)
+        ws2.column_dimensions[col[0].column_letter].width = min(max_len + 4, 30)
 
     buf = io.BytesIO()
     wb.save(buf)
