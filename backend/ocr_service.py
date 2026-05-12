@@ -385,21 +385,15 @@ async def recognize_image(image_bytes: bytes) -> dict:
                 if rec_texts:
                     ocr_texts.extend(rec_texts)
 
-        # 将 rec_texts 合并为逻辑行：以 : 或 ：结尾的项与其后续项合并
+        # 将 rec_texts 合并为逻辑行：以 : 或 ：结尾的项与其后1个项合并
         lines = []
         i = 0
         while i < len(ocr_texts):
             text = ocr_texts[i].strip()
             i += 1
-            if text and (text.endswith(':') or text.endswith('：')):
-                merged = 0
-                while i < len(ocr_texts) and merged < 3:
-                    nxt = ocr_texts[i].strip()
-                    if nxt.endswith(':') or nxt.endswith('：'):
-                        break
-                    text += ' ' + nxt
-                    i += 1
-                    merged += 1
+            if text and (text.endswith(':') or text.endswith('：')) and i < len(ocr_texts):
+                text += ' ' + ocr_texts[i].strip()
+                i += 1
             lines.append(text)
 
         full_text = "\n".join(lines)
