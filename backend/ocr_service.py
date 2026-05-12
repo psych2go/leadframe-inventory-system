@@ -75,7 +75,8 @@ def _resolve_aami_spec(raw_text: str) -> str:
 
     def extract(keywords):
         for keyword in keywords:
-            pattern = rf"{re.escape(keyword)}\s*[:：]\s*(.+?)(?:\n|$)"
+            esc = re.escape(keyword)
+            pattern = rf"\b{esc}\s*[:：]\s*(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 val = match.group(1).strip()
@@ -83,14 +84,14 @@ def _resolve_aami_spec(raw_text: str) -> str:
                 if sub:
                     return sub.group(1).strip()
                 return val
-            pattern = rf"{re.escape(keyword)}\s+(.+?)(?:\n|$)"
+            pattern = rf"\b{esc}\s+(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 return match.group(1).strip()
         return ""
 
-    # 优先级1: CUST P/N 或 CUSTOMER P/N
-    cust_pn = extract(["CUST P/N", "CUSTOMER P/N"])
+    # 优先级1: CUSTP/N 或 CUST P/N 或 CUSTOMER P/N
+    cust_pn = extract(["CUSTP/N", "CUST P/N", "CUSTOMER P/N"])
     if cust_pn:
         return cust_pn
 
@@ -224,16 +225,16 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     # 提取冒号后的值，遇到下一个 "Key:" 或 "Key：" 模式时截断
     def extract(keywords):
         for keyword in keywords:
-            pattern = rf"{re.escape(keyword)}\s*[:：]\s*(.+?)(?:\n|$)"
+            esc = re.escape(keyword)
+            pattern = rf"\b{esc}\s*[:：]\s*(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 val = match.group(1).strip()
-                # 截断：如果值里还嵌套了 "Key: Value" 模式，只取前面部分
                 sub = re.match(r"(.+?)\s+\w+\s*[:：]", val)
                 if sub:
                     return sub.group(1).strip()
                 return val
-            pattern = rf"{re.escape(keyword)}\s+(.+?)(?:\n|$)"
+            pattern = rf"\b{esc}\s+(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 return match.group(1).strip()
@@ -294,7 +295,7 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     result["production_date"] = _normalize_date(extract([
         "PD", "pd", "Pd",
         "PLATED DATE", "Plated Date", "plated date",
-        "MFG DATE", "MFG date", "mfg date", "MFG. DATE",
+        "MFGDATE", "MFG DATE", "MFG date", "mfg date", "MFG. DATE",
         "Production DATE", "production date", "Production date",
         "生产日期", "制造日期", "生产时间",
     ]))
@@ -302,8 +303,8 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     # 有效日期
     result["expiry_date"] = _normalize_date(extract([
         "EXP", "exp", "Exp",
+        "EXPDATE", "EXP DATE", "EXP date", "exp date", "EXP. DATE",
         "VALID DATE", "Valid Date", "valid date",
-        "EXP DATE", "EXP date", "exp date", "EXP. DATE",
         "Expiration DATE", "expiration date", "Expiration date",
         "Expiry DATE", "expiry date", "Expiry date",
         "有效期至", "有效日期", "过期日期", "失效日期", "保质期至", "到期日期",
