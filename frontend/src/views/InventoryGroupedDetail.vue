@@ -21,10 +21,16 @@
 
     <div class="section-title">
       <span>批次明细</span>
-      <span class="section-action" @click="showOutForm = true">
-        <van-icon name="upgrade" size="14" />
-        出库
-      </span>
+      <div class="section-actions">
+        <span class="section-action section-action-in" @click="showInForm = true">
+          <van-icon name="down" size="14" />
+          入库
+        </span>
+        <span class="section-action" @click="showOutForm = true">
+          <van-icon name="upgrade" size="14" />
+          出库
+        </span>
+      </div>
     </div>
 
     <div class="batch-list">
@@ -95,6 +101,36 @@
     </div>
 
     <!-- 出库弹窗 -->
+    <!-- 入库弹窗 -->
+    <van-popup v-model:show="showInForm" position="bottom" round :style="{ maxHeight: '70%' }">
+      <div class="out-popup">
+        <div class="out-popup-header">
+          <span class="out-popup-title">选择入库批次</span>
+          <van-icon name="cross" size="20" color="#999" @click="showInForm = false" />
+        </div>
+        <div class="out-batch-list">
+          <div
+            v-for="b in batches"
+            :key="'in-'+b.id"
+            class="out-batch-item"
+            :class="{ active: inBatch?.id === b.id }"
+            @click="inBatch = b"
+          >
+            <div class="out-batch-info">
+              <span class="out-batch-no">批号: {{ b.batch_no || '-' }}</span>
+              <span class="out-batch-date">{{ b.production_date || '-' }}</span>
+            </div>
+            <span class="out-batch-qty">{{ b.quantity }}K</span>
+          </div>
+        </div>
+        <div v-if="inBatch" class="out-form">
+          <van-field v-model="inQuantity" label="入库数量(K)" type="number" placeholder="请输入入库数量" />
+          <van-button type="primary" block @click="doStockIn" :loading="submitting">确认入库</van-button>
+        </div>
+      </div>
+    </van-popup>
+
+    <!-- 出库弹窗 -->
     <van-popup v-model:show="showOutForm" position="bottom" round :style="{ maxHeight: '70%' }">
       <div class="out-popup">
         <div class="out-popup-header">
@@ -146,7 +182,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast, showConfirmDialog } from 'vant'
-import { getInventoryGroupedDetail, stockOut, deleteInventory, updateInventory, getStockLogs, deleteStockLog } from '../api'
+import { getInventoryGroupedDetail, stockIn, stockOut, deleteInventory, updateInventory, getStockLogs, deleteStockLog } from '../api'
 import { isLowStock, parseQtyToK } from '../utils/qty'
 
 const route = useRoute()
@@ -159,6 +195,9 @@ const info = reactive({
 })
 const batches = ref([])
 const selectedBatch = ref(null)
+const showInForm = ref(false)
+const inBatch = ref(null)
+const inQuantity = ref('')
 const showOutForm = ref(false)
 const outBatch = ref(null)
 const outQuantity = ref('')
@@ -272,6 +311,36 @@ async function onDeleteBatch(b) {
   }
 }
 
+async function doStockIn() {
+  if (!inBatch.value) return showToast('请选择入库批次')
+  const qty = Number(inQuantity.value)
+  if (!qty || qty <= 0) return showToast('请输入有效入库数量')
+  submitting.value = true
+  try {
+    const q = route.query
+    await stockIn({
+      package_type: q.package_type || '',
+      spec: q.spec || '',
+      plating_zone: q.plating_zone || '',
+      surface_treatment: q.surface_treatment || '',
+      manufacturer: q.manufacturer || '',
+      batch_no: inBatch.value.batch_no || '',
+      production_date: inBatch.value.production_date || '',
+      expiry_date: inBatch.value.expiry_date || '',
+      quantity: String(qty),
+    })
+    showSuccessToast('入库成功')
+    showInForm.value = false
+    inBatch.value = null
+    inQuantity.value = ''
+    loadData()
+  } catch (e) {
+    showToast({ message: '入库失败: ' + (e.response?.data?.detail || e.message), position: 'bottom' })
+  } finally {
+    submitting.value = false
+  }
+}
+
 async function doStockOut() {
   if (!outBatch.value) return showToast('请选择出库批次')
   const qty = Number(outQuantity.value)
@@ -300,8 +369,13 @@ async function doStockOut() {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 16px 8px; font-size: 15px; font-weight: 600; color: #333;
 }
+.section-actions { display: flex; gap: 12px; }
 .section-action {
   font-size: 13px; color: #ee0a24; cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+}
+.section-action-in {
+  font-size: 13px; color: #07c160; cursor: pointer;
   display: flex; align-items: center; gap: 4px;
 }
 .batch-list { padding: 0 12px; }

@@ -14,6 +14,7 @@ jobs:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SERVER_SSH_KEY }}
+        command_timeout: 30m
         script: |
           set -e
           cd /opt/leadframe-inventory
@@ -21,13 +22,13 @@ jobs:
           git fetch origin
           git reset --hard origin/main
 
-          # 后端：安装依赖（requirements.txt 有变更时）
+          # 后端：安装依赖
           cd backend
           ./venv/bin/pip install -r requirements.txt -q
 
           # 前端：安装依赖并构建
           cd ../frontend
-          npm install
+          npm install --prefer-offline
           npm run build
 
           # PM2 重启后端
