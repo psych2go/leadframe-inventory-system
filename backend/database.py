@@ -341,7 +341,7 @@ def stock_in(package_type: str, spec: str, plating_zone: str, surface_treatment:
             inv_id = cursor.lastrowid
 
         conn.execute(
-            "INSERT INTO stock_log (inventory_id, type, quantity, operator) VALUES (?, 'in', ?, ?)",
+            "INSERT INTO stock_log (inventory_id, type, quantity, operator, created_at) VALUES (?, 'in', ?, ?, datetime('now','+8 hours'))",
             (inv_id, quantity, operator)
         )
         if own_conn:
@@ -372,7 +372,7 @@ def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str 
             (new_qty, inventory_id)
         )
         conn.execute(
-            "INSERT INTO stock_log (inventory_id, type, quantity, note, operator) VALUES (?, 'out', ?, ?, ?)",
+            "INSERT INTO stock_log (inventory_id, type, quantity, note, operator, created_at) VALUES (?, 'out', ?, ?, ?, datetime('now','+8 hours'))",
             (inventory_id, quantity, note, operator)
         )
         if own_conn:
@@ -423,8 +423,8 @@ def write_audit(conn, user_id: str, user_name: str, action: str,
     conn.execute(
         """INSERT INTO audit_log
            (user_id, user_name, action, table_name, record_id,
-            snapshot, changes, detail, ip_address)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            snapshot, changes, detail, ip_address, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','+8 hours'))""",
         (
             user_id,
             user_name,
