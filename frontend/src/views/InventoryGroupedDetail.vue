@@ -43,7 +43,13 @@
           <template #label>
             <div>生产日期: {{ b.production_date || '-' }}</div>
             <div>有效期: {{ b.expiry_date || '-' }}</div>
-            <div v-if="b.note">备注: {{ b.note }}</div>
+            <div v-if="b.note" class="note-row">
+              <span>备注: {{ b.note }}</span>
+              <van-icon name="edit" size="14" color="#1989fa" @click.stop="onEditNote(b)" />
+            </div>
+            <div v-else class="note-row">
+              <span class="add-note" @click.stop="onEditNote(b)">添加备注</span>
+            </div>
           </template>
           <template #value>
             <span :class="isLowStock(info.total_quantity) ? 'qty-alert' : 'qty'">{{ b.quantity }}K</span>
@@ -85,6 +91,23 @@
         </div>
       </div>
     </van-popup>
+
+    <!-- 备注编辑弹窗 -->
+    <van-popup v-model:show="showNoteForm" position="bottom" round :style="{ maxHeight: '50%' }">
+      <div class="note-popup">
+        <div class="out-popup-header">
+          <span class="out-popup-title">编辑备注</span>
+          <van-icon name="cross" size="20" color="#999" @click="showNoteForm = false" />
+        </div>
+        <div class="note-popup-info">
+          批号: {{ noteBatch?.batch_no || '-' }}　　数量: {{ noteBatch?.quantity || '0' }}K
+        </div>
+        <van-field v-model="noteText" type="textarea" rows="3" placeholder="请输入备注" />
+        <div style="padding: 12px 16px;">
+          <van-button type="primary" block @click="saveNote" :loading="noteSubmitting">保存</van-button>
+        </div>
+      </div>
+    </van-popup>
   </div>
 </template>
 
@@ -92,7 +115,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast, showConfirmDialog } from 'vant'
-import { getInventoryGroupedDetail, stockOut, deleteInventory } from '../api'
+import { getInventoryGroupedDetail, stockOut, deleteInventory, updateInventory } from '../api'
 import { isLowStock, parseQtyToK } from '../utils/qty'
 
 const route = useRoute()
@@ -109,6 +132,10 @@ const showOutForm = ref(false)
 const outBatch = ref(null)
 const outQuantity = ref('')
 const submitting = ref(false)
+const showNoteForm = ref(false)
+const noteBatch = ref(null)
+const noteText = ref('')
+const noteSubmitting = ref(false)
 
 onMounted(() => { loadData() })
 watch(() => route.fullPath, () => { loadData() })
@@ -142,6 +169,27 @@ function onEdit() {
       manufacturer: q.manufacturer || '',
     },
   })
+}
+
+function onEditNote(b) {
+  noteBatch.value = b
+  noteText.value = b.note || ''
+  showNoteForm.value = true
+}
+
+async function saveNote() {
+  if (!noteBatch.value) return
+  noteSubmitting.value = true
+  try {
+    await updateInventory(noteBatch.value.id, { note: noteText.value.trim() })
+    noteBatch.value.note = noteText.value.trim()
+    showNoteForm.value = false
+    showSuccessToast('保存成功')
+  } catch (e) {
+    showToast({ message: '保存失败: ' + (e.response?.data?.detail || e.message), position: 'bottom' })
+  } finally {
+    noteSubmitting.value = false
+  }
 }
 
 async function onDeleteBatch(b) {
@@ -199,6 +247,11 @@ async function doStockOut() {
 .qty-alert { font-size: 14px; font-weight: 600; color: #ee0a24; }
 .selected-batch { background: #f0f9ff; }
 .batch-delete-btn { height: 100%; }
+.note-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.add-note { font-size: 12px; color: #1989fa; cursor: pointer; }
+.note-popup { padding: 16px 0; }
+.note-popup-info { padding: 0 16px 12px; font-size: 13px; color: #666; }
+.note-popup :deep(.van-cell) { margin: 0 16px; border-radius: 8px; background: #f7f8fa; }
 
 .out-popup { padding: 16px; }
 .out-popup-header {
