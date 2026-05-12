@@ -79,12 +79,17 @@ def _resolve_aami_spec(raw_text: str) -> str:
             pattern = rf"\b{esc}\s*[:：]\s*(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
-                val = match.group(1).strip()
+                val = match.group(1).strip().lstrip(":：")
                 sub = re.match(r"(.+?)\s+\w+\s*[:：]", val)
                 if sub:
                     return sub.group(1).strip()
                 return val
             pattern = rf"\b{esc}\s+(.+?)(?:\n|$)"
+            match = re.search(pattern, clean_text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+            # 兜底：关键词与值直接相连无分隔符
+            pattern = rf"(?<!\w){esc}([A-Z0-9].*?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 return match.group(1).strip()
@@ -229,12 +234,17 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
             pattern = rf"\b{esc}\s*[:：]\s*(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
-                val = match.group(1).strip()
+                val = match.group(1).strip().lstrip(":：")
                 sub = re.match(r"(.+?)\s+\w+\s*[:：]", val)
                 if sub:
                     return sub.group(1).strip()
                 return val
             pattern = rf"\b{esc}\s+(.+?)(?:\n|$)"
+            match = re.search(pattern, clean_text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+            # 兜底：关键词与值直接相连无分隔符（如 LOTNOHYE230413-11）
+            pattern = rf"(?<!\w){esc}([A-Z0-9].*?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 return match.group(1).strip()
@@ -274,7 +284,7 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     # 批号: Lot No. / 批号
     result["batch_no"] = extract([
         "Lot No", "Lot No.", "LOT NO", "Lot Number", "lot no",
-        "LOTNO",
+        "LOTNO", "LotNo",
         "lot", "Lot", "LOT",
         "批号", "批次号", "批次", "产品批号", "生产批号",
     ])
@@ -289,24 +299,33 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
         if "/" in qty_raw:
             parts = qty_raw.split("/", 1)
             qty_raw = next((p.strip() for p in parts if re.search(r'\d\s*[kK]', p)), parts[-1].strip())
+        # 处理单位在下一行的情况（如 "Qty: 200\n条" → 拼接为 "200条"）
+        for kw in ["Q'ty", "Qty", "qty", "QTY", "数量", "件数", "总数"]:
+            m = re.search(
+                rf"\b{re.escape(kw)}\s*[:：]?\s*{re.escape(qty_raw)}\s*\n+\s*(条|PCS|pcs|只|万)",
+                clean_text,
+            )
+            if m:
+                qty_raw = qty_raw + m.group(1)
+                break
         result["quantity"] = _normalize_qty(qty_raw)
 
     # 生产日期
     result["production_date"] = _normalize_date(extract([
         "PD", "pd", "Pd",
         "PLATED DATE", "Plated Date", "plated date",
-        "MFGDATE", "MFG DATE", "MFG date", "mfg date", "MFG. DATE",
-        "Production DATE", "production date", "Production date",
+        "MFGDATE", "MFG DATE", "MFG date", "mfg date", "MFG. DATE", "MfgDate",
+        "ProductionDate", "Production DATE", "production date", "Production date",
         "生产日期", "制造日期", "生产时间",
     ]))
 
     # 有效日期
     result["expiry_date"] = _normalize_date(extract([
         "EXP", "exp", "Exp",
-        "EXPDATE", "EXP DATE", "EXP date", "exp date", "EXP. DATE",
+        "EXPDATE", "EXP DATE", "EXP date", "exp date", "EXP. DATE", "ExpDate",
         "VALID DATE", "Valid Date", "valid date",
-        "Expiration DATE", "expiration date", "Expiration date",
-        "Expiry DATE", "expiry date", "Expiry date",
+        "ExpirationDate", "Expiration DATE", "expiration date", "Expiration date",
+        "ExpiryDate", "Expiry DATE", "expiry date", "Expiry date",
         "有效期至", "有效日期", "过期日期", "失效日期", "保质期至", "到期日期",
     ]))
 
