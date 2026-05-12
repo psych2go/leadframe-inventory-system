@@ -211,16 +211,20 @@ const stockLogs = ref([])
 onMounted(() => { loadData() })
 watch(() => route.fullPath, () => { loadData() })
 
+function getQueryParams() {
+  const q = route.query
+  return {
+    package_type: q.package_type || '',
+    spec: q.spec || '',
+    plating_zone: q.plating_zone || '',
+    surface_treatment: q.surface_treatment || '',
+    manufacturer: q.manufacturer || '',
+  }
+}
+
 async function loadData() {
   try {
-    const q = route.query
-    const data = await getInventoryGroupedDetail({
-      package_type: q.package_type || '',
-      spec: q.spec || '',
-      plating_zone: q.plating_zone || '',
-      surface_treatment: q.surface_treatment || '',
-      manufacturer: q.manufacturer || '',
-    })
+    const data = await getInventoryGroupedDetail(getQueryParams())
     Object.assign(info, data)
     batches.value = data.batches
     loadStockLogs(data.batches)
@@ -242,17 +246,7 @@ async function loadStockLogs(batchList) {
 }
 
 function onEdit() {
-  const q = route.query
-  router.push({
-    name: 'InventoryGroupedEdit',
-    query: {
-      package_type: q.package_type || '',
-      spec: q.spec || '',
-      plating_zone: q.plating_zone || '',
-      surface_treatment: q.surface_treatment || '',
-      manufacturer: q.manufacturer || '',
-    },
-  })
+  router.push({ name: 'InventoryGroupedEdit', query: getQueryParams() })
 }
 
 function onEditNote(b) {
@@ -317,13 +311,8 @@ async function doStockIn() {
   if (!qty || qty <= 0) return showToast('请输入有效入库数量')
   submitting.value = true
   try {
-    const q = route.query
     await stockIn({
-      package_type: q.package_type || '',
-      spec: q.spec || '',
-      plating_zone: q.plating_zone || '',
-      surface_treatment: q.surface_treatment || '',
-      manufacturer: q.manufacturer || '',
+      ...getQueryParams(),
       batch_no: inBatch.value.batch_no || '',
       production_date: inBatch.value.production_date || '',
       expiry_date: inBatch.value.expiry_date || '',

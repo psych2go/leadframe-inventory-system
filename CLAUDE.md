@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-引线框架（Leadframe）库存管理系统。移动端 H5 应用，嵌入企业微信使用。核心流程：拍照 → PaddleOCR-VL-1.5 云端 API 识别标签 → 结构化数据入库。以物料编码+批号为唯一标识，相同则数量累加。
+引线框架（Leadframe）库存管理系统。移动端 H5 应用，嵌入企业微信使用。核心流程：拍照 → PaddleOCR-VL-1.5 云端 API 识别标签 → 结构化数据入库。以封装形式+规格+镀银区域+表面处理+厂家+批号为复合唯一标识，相同则数量累加。
 
 ## 技术栈
 
@@ -29,21 +29,27 @@
 | `backend/database.py` | SQLite 连接管理，inventory/stock_log/audit_log 三张表的建表/CRUD/审计 |
 | `backend/ocr_service.py` | PaddleOCR-VL-1.5 云端 API 调用，base64 编码图片，解析返回的 Markdown 文本为结构化字段 |
 | `backend/routers/ocr.py` | POST /api/ocr，接收图片上传（限制 20MB），保存文件后调用 OCR |
-| `backend/routers/inventory.py` | 库存 CRUD、入库、出库、记录查询、审计日志查询、上传图片静态服务、Excel 导出 |
+| `backend/routers/inventory.py` | 库存 CRUD、分组查询、入库、出库、记录查询与撤销、审计日志查询、上传图片静态服务、Excel 导出 |
 | `backend/auth_service.py` | JWT 签发/验证，企微 API 调用（access_token + jsapi_ticket + 用户身份），缓存 |
 | `backend/routers/auth.py` | 企微 OAuth + 密码登录：授权链接、code→JWT 回调、密码验证登录、JS-SDK 签名配置 |
-| `frontend/src/api/index.js` | Axios 实例（baseURL = BASE_URL + 'api'，即 `/inventory/api`），所有后端接口封装 |
+| `frontend/src/api/index.js` | Axios 实例（baseURL = BASE_URL + 'api'，即 `/inventory/api`），所有后端接口封装（26 个函数） |
 | `frontend/src/utils/wxsdk.js` | 企微 JS-SDK 封装：初始化 wx.config、chooseImage（支持拍照+相册）、getLocalImgData，非企微降级，上传前压缩图片 |
+| `frontend/src/utils/qty.js` | 数量单位工具函数：parseQtyToK（解析 K 单位数值）、isLowStock（低库存判断） |
+| `frontend/src/components/Viewfinder.vue` | 相机取景器组件，支持 WebRTC 实时预览拍照 |
+| `frontend/src/components/CropModal.vue` | 图片裁剪弹窗组件（基于 Cropper.js） |
 | `frontend/src/views/Camera.vue` | 拍照/选图（企微 JS-SDK 或 HTML input）→ OCR → 展示可编辑识别结果 → 确认入库 |
 | `frontend/src/views/CameraOut.vue` | 拍照出库：拍照识别 → 匹配库存记录 → 选择 → 出库 |
 | `frontend/src/views/StockOut.vue` | 搜索库存 → 选择 → 输入出库数量 → 确认 |
-| `frontend/src/views/InventoryList.vue` | 库存列表，搜索、下拉刷新、无限加载、滑动删除、导出 Excel |
-| `frontend/src/views/InventoryDetail.vue` | 库存详情页 |
+| `frontend/src/views/InventoryList.vue` | 库存列表，搜索、筛选、下拉刷新、无限加载、滑动删除、导出 Excel |
+| `frontend/src/views/InventoryDetail.vue` | 单条库存详情页 |
+| `frontend/src/views/InventoryEdit.vue` | 单条库存编辑页，支持字段修改，冲突时自动合并 |
+| `frontend/src/views/InventoryGroupedDetail.vue` | 分组库存详情页（按封装形式/规格/镀银区域/表面处理/厂家聚合），含批次列表和入库按钮 |
+| `frontend/src/views/InventoryGroupedEdit.vue` | 分组库存批量编辑页（更新同组所有批次的共有字段） |
 | `frontend/src/views/AuditLogs.vue` | 操作记录日志列表，按操作类型筛选 |
-| `frontend/src/views/Home.vue` | 首页仪表盘，统计+快捷入口（4 宫格）+库存预警，导航栏右上角「操作记录」入口 |
+| `frontend/src/views/Home.vue` | 首页仪表盘，统计+快捷入口+库存预警，导航栏右上角「操作记录」入口 |
 | `frontend/src/views/StockIn.vue` | 手动入库表单 |
 | `frontend/src/views/Login.vue` | 密码登录页（设置 LOGIN_PASSWORD 后生效） |
-| `frontend/src/router/index.js` | Vue Router，history 模式，base `/inventory/`，8 个路由 |
+| `frontend/src/router/index.js` | Vue Router，history 模式，base `/inventory/`，12 个路由，动态认证守卫 |
 | `frontend/vite.config.js` | Vite 配置，base: `/inventory/`，开发代理 `/api` → `localhost:8000` |
 | `ecosystem.config.js` | PM2 进程管理配置（生产部署用） |
 | `nginx.conf` | Docker 部署用 Nginx 配置，HTTP/HTTPS，安全响应头，gzip |
@@ -56,19 +62,25 @@
 
 SQLite，文件 `backend/inventory.db`。
 
-**inventory 表**：id, material_code, spec, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path, created_at, updated_at。唯一约束 `UNIQUE(material_code, batch_no)`。
+**inventory 表**：id, package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no, production_date, expiry_date, quantity, note, image_path, created_at, updated_at。唯一约束 `UNIQUE(package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)`。
 
 **stock_log 表**：id, inventory_id(外键), type('in'/'out'), quantity, note, operator, created_at。
 
 **audit_log 表**：id, user_id, user_name, action('stock_in'/'stock_out'/'update'/'delete'), table_name, record_id, snapshot(JSON), changes(JSON), detail, ip_address, created_at。
 
+**索引**：idx_inventory_spec(spec), idx_stock_log_inventory(inventory_id), idx_audit_log_created(created_at DESC), idx_audit_log_action(action), idx_inventory_updated(updated_at DESC)。
+
 ### 数量单位
 
-所有数量以 **K（千）** 为单位存储，最多 3 位小数。如 `"46.368"` 表示 46,368 只。预警阈值为 2K。
+所有数量以 **K（千）** 为单位存储为 TEXT 类型，最多 3 位小数。如 `"46.368"` 表示 46,368 只。前端通过 `qty.js` 的 `parseQtyToK()` 统一解析。预警阈值为 2K。
+
+### 入库规则
+
+以 **封装形式+规格+镀银区域+表面处理+厂家+批号** 为复合唯一标识。入库时如果已有相同组合的记录，数量自动累加；否则新建记录。编辑记录时如果修改导致与已有记录冲突，自动合并（数量累加到已有记录，迁移 stock_log，删除当前记录）。
 
 ## OCR 流程
 
-1. 前端拍照/选图（企微内用 JS-SDK `wx.chooseImage`，非企微用 HTML input）→ 自动压缩图片（最大宽度 1600px，JPEG 质量 80%）→ POST /api/ocr（multipart/form-data，限制 20MB）
+1. 前端拍照/选图（企微内用 JS-SDK `wx.chooseImage`，非企微用 HTML input 或 Viewfinder 组件）→ 自动压缩图片（最大宽度 1600px，JPEG 质量 80%）→ POST /api/ocr（multipart/form-data，限制 20MB）
 2. 后端保存图片到 uploads/ → 调用 PaddleOCR PP-OCRv5 异步 API（提交任务 → 轮询 → 取 JSONL 结果）
 3. API 返回 JSONL 格式的 OCR 文本结果
 4. `parse_ocr_markdown()` 用正则从文本中提取字段（厂家、规格、批号、数量、日期等）
@@ -124,8 +136,9 @@ OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_AP
 |------|--------|----------|
 | 入库 POST /api/stock-in | stock_in | 数量、规格、批号 |
 | 出库 POST /api/stock-out | stock_out | 出库数量 + 操作前完整快照 |
-| 编辑 PUT /api/inventory/:id | update | 实际变更字段的 diff（old → new） |
+| 编辑 PUT /api/inventory/:id | update | 实际变更字段的 diff（old → new），冲突合并时记录合并详情 |
 | 删除 DELETE /api/inventory/:id | delete | 被删记录的完整快照 |
+| 撤销出入库 DELETE /api/stock-logs/:id | delete | 被撤销记录的快照 + 撤销类型（入库/出库） |
 
 每条审计记录包含：操作人（user_id + user_name）、操作时间、IP 地址、变更详情。通过 `GET /api/audit-logs` 查询，前端首页导航栏右上角「操作记录」入口跳转 `/audit-logs` 页面展示。
 
@@ -284,20 +297,24 @@ npm run dev
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | /api/health | 健康检查 |
-| GET | /api/config | 前端配置探测（企微是否启用、是否强制登录） |
+| GET | /api/config | 前端配置探测（企微是否启用、密码登录是否启用、是否强制登录） |
 | POST | /api/ocr | 图片 OCR 识别（限制 20MB） |
-| GET | /api/inventory | 库存列表（?search=&page=&size=） |
-| GET | /api/inventory/alerts | 低库存预警（< 2K） |
-| GET | /api/inventory/export | 导出 Excel（?search=） |
+| GET | /api/inventory | 库存列表（?search=&package_type=&spec=&plating_zone=&surface_treatment=&page=&size=） |
+| GET | /api/inventory/filter-options | 获取筛选选项（去重的封装形式和规格列表） |
+| GET | /api/inventory/alerts | 低库存预警（分组总量 < 2K） |
+| GET | /api/inventory-grouped | 分组库存列表（按封装形式/规格/镀银区域/表面处理/厂家聚合，?alert=true 只返回预警） |
+| GET | /api/inventory-grouped/detail | 分组库存详情（含批次列表） |
+| PUT | /api/inventory-grouped/update | 批量更新同组库存的共有字段 |
+| GET | /api/inventory/export | 导出 Excel（两个 sheet：库存汇总 + 库存明细） |
 | GET | /api/inventory/:id | 单条库存 |
-| PUT | /api/inventory/:id | 更新库存（含审计） |
-| DELETE | /api/inventory/:id | 删除库存（含审计，删除前记录快照） |
-| POST | /api/stock-in | 入库（相同物料编码+批号累加数量） |
+| PUT | /api/inventory/:id | 更新库存（含审计，冲突时自动合并） |
+| DELETE | /api/inventory/:id | 删除库存（含审计，删除前记录快照，级联删除 stock_log） |
+| POST | /api/stock-in | 入库（相同组合累加数量） |
 | POST | /api/stock-out | 出库（扣减数量，BEGIN IMMEDIATE 防竞态） |
-| GET | /api/stock-logs | 出入库记录（?inventory_id=&page=） |
+| GET | /api/stock-logs | 出入库记录（?inventory_id=&page=&size=） |
+| DELETE | /api/stock-logs/:id | 撤销出入库记录（反向调整库存数量） |
 | GET | /api/audit-logs | 操作审计日志（?action=&page=&size=） |
 | GET | /api/uploads/:filename | 上传图片静态服务（防路径遍历） |
-| GET | /api/material-code-suggest | 根据规格建议物料编码（?spec=） |
 | GET | /api/auth/wecom/url | 生成企微 OAuth 授权链接 |
 | GET | /api/auth/wecom/callback | 企微 OAuth 回调，code→JWT→重定向 |
 | POST | /api/auth/wecom/login | 前端用 code 换 JWT |
@@ -317,6 +334,9 @@ npm run dev
 - `/inventory/stock-out/:id?` — StockOut.vue（搜索/选择→出库）
 - `/inventory/inventory` — InventoryList.vue（库存列表+导出）
 - `/inventory/inventory/:id` — InventoryDetail.vue（库存详情）
+- `/inventory/inventory/:id/edit` — InventoryEdit.vue（库存编辑）
+- `/inventory/inventory-grouped` — InventoryGroupedDetail.vue（分组库存详情）
+- `/inventory/inventory-grouped/edit` — InventoryGroupedEdit.vue（分组库存编辑）
 - `/inventory/audit-logs` — AuditLogs.vue（操作审计日志）
 
 ## 注意事项
@@ -327,6 +347,8 @@ npm run dev
 - JWT_SECRET 必须设置，未设置时无法签发 Token
 - CORS 默认 `*`（开发用），生产环境通过 Nginx 同源代理，可设 `CORS_ORIGINS` 收紧
 - 出库操作使用 `BEGIN IMMEDIATE` 防止并发超额出库
+- 编辑库存时如果与已有记录冲突会自动合并（数量累加，stock_log 迁移，当前记录删除）
+- 撤销出入库记录（DELETE /api/stock-logs/:id）会反向调整库存数量
 - 后端日志同时输出到控制台和 `logs/app.log`
 - `backend/.env` 和 `certs/` 已加入 `.gitignore`，不提交敏感信息
 - `APP_BASE_URL` 在共享服务器部署时必须包含 `/inventory` 路径前缀（OAuth 回调依赖）

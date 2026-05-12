@@ -136,8 +136,4 @@ router.beforeEach(async (to) => {
   }
 })
 
-export function setWecomEnabled(val) {
-  wecomEnabled = val
-}
-
 export default router

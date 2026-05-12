@@ -17,44 +17,6 @@ export function isWebRTCSupported() {
   }
 }
 
-/**
- * 压缩图片：最大宽度 1600px，JPEG 质量 0.85
- * 前端做基本压缩减小传输体积，同时保留足够分辨率保证 OCR 识别效果
- */
-export function compressImage(file) {
-  return new Promise((resolve) => {
-    const MAX_WIDTH = 1600
-    const QUALITY = 0.85
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      if (img.width <= MAX_WIDTH && file.size < 300 * 1024) {
-        resolve(file)
-        return
-      }
-      const scale = Math.min(1, MAX_WIDTH / img.width)
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.width * scale)
-      canvas.height = Math.round(img.height * scale)
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(
-        (blob) => {
-          resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }))
-        },
-        'image/jpeg',
-        QUALITY,
-      )
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      resolve(file)
-    }
-    img.src = url
-  })
-}
-
 let wxReady = false
 let wxConfigured = false
 let wxInitAttempts = 0
@@ -157,9 +119,6 @@ export async function getRawPhoto(source = 'camera') {
     input.click()
   })
 }
-
-// 兼容旧引用
-export const getPhoto = getRawPhoto
 
 // 页面加载时初始化（延迟执行，不阻塞首屏）
 if (isWecom()) {

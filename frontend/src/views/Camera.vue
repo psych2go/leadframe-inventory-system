@@ -132,7 +132,6 @@ const showSurfacePicker = ref(false)
 const showViewfinder = ref(false)
 const showCrop = ref(false)
 const cropFile = ref(null)
-const captureSource = ref('') // 'camera' | 'album'
 
 const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }, { text: '无', value: '' }]
 const surfaceOptions = [{ text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }, { text: '无', value: '' }]
@@ -160,7 +159,6 @@ function onSurfaceConfirm({ selectedValues }) {
 }
 
 async function handleCapture(source = 'camera') {
-  captureSource.value = source
   if (source === 'camera' && isWebRTCSupported()) {
     // 方案 B：实时取景框（WebRTC）
     showViewfinder.value = true
@@ -186,16 +184,7 @@ async function onViewfinderCapture(file) {
 async function onViewfinderError(msg) {
   showViewfinder.value = false
   showToast({ message: msg + '，使用系统相机', position: 'bottom' })
-  // WebRTC 失败，降级到方案 A：直接调起系统相机 + CropModal
-  try {
-    const file = await getRawPhoto('camera')
-    cropFile.value = file
-    showCrop.value = true
-  } catch (e) {
-    if (e.message !== '未选择图片') {
-      showToast({ message: '拍照失败: ' + e.message, position: 'bottom' })
-    }
-  }
+  handleCapture('camera')
 }
 
 async function onViewfinderCancel() {

@@ -42,11 +42,6 @@ export async function wecomLogin(code) {
   return data
 }
 
-export async function getAuthMe() {
-  const { data } = await api.get('/auth/me')
-  return data
-}
-
 export async function passwordLogin(password) {
   const { data } = await api.post('/auth/login', { password })
   return data

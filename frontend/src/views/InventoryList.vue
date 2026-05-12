@@ -23,11 +23,11 @@
         </div>
         <div class="filter-chip" :class="{ active: filters.plating_zone }" @click="showPlatingPicker = true">
           <span class="chip-label">镀银</span>
-          <span class="chip-val">{{ platingLabel(filters.plating_zone) }}</span>
+          <span class="chip-val">{{ filterLabel(filters.plating_zone) }}</span>
         </div>
         <div class="filter-chip" :class="{ active: filters.surface_treatment }" @click="showSurfacePicker = true">
           <span class="chip-label">粗化</span>
-          <span class="chip-val">{{ surfaceLabel(filters.surface_treatment) }}</span>
+          <span class="chip-val">{{ filterLabel(filters.surface_treatment) }}</span>
         </div>
       </div>
       <div v-if="hasActiveFilters" class="filter-bar-bottom">
@@ -126,8 +126,7 @@ const surfaceOptions = [
   { text: 'ERC', value: 'ERC' },
 ]
 
-function platingLabel(v) { return v || '全部' }
-function surfaceLabel(v) { return v || '全部' }
+const filterLabel = (v) => v || '全部'
 
 async function loadFilterOptions() {
   try {
@@ -137,26 +136,17 @@ async function loadFilterOptions() {
   } catch (e) {}
 }
 
-function onPkgConfirm({ selectedValues }) {
-  filters.package_type = selectedValues[0] || ''
-  showPkgPicker.value = false
-  loadData()
+function makePickerHandler(filterKey, showRef) {
+  return ({ selectedValues }) => {
+    filters[filterKey] = selectedValues[0] || ''
+    showRef.value = false
+    loadData()
+  }
 }
-function onSpecConfirm({ selectedValues }) {
-  filters.spec = selectedValues[0] || ''
-  showSpecPicker.value = false
-  loadData()
-}
-function onPlatingConfirm({ selectedValues }) {
-  filters.plating_zone = selectedValues[0] || ''
-  showPlatingPicker.value = false
-  loadData()
-}
-function onSurfaceConfirm({ selectedValues }) {
-  filters.surface_treatment = selectedValues[0] || ''
-  showSurfacePicker.value = false
-  loadData()
-}
+const onPkgConfirm = makePickerHandler('package_type', showPkgPicker)
+const onSpecConfirm = makePickerHandler('spec', showSpecPicker)
+const onPlatingConfirm = makePickerHandler('plating_zone', showPlatingPicker)
+const onSurfaceConfirm = makePickerHandler('surface_treatment', showSurfacePicker)
 
 const hasActiveFilters = computed(() =>
   filters.package_type || filters.spec || filters.plating_zone || filters.surface_treatment,

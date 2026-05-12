@@ -166,15 +166,7 @@ async function onViewfinderCapture(file) {
 async function onViewfinderError(msg) {
   showViewfinder.value = false
   showToast({ message: msg + '，使用系统相机', position: 'bottom' })
-  try {
-    const file = await getRawPhoto('camera')
-    cropFile.value = file
-    showCrop.value = true
-  } catch (e) {
-    if (e.message !== '未选择图片') {
-      showToast({ message: '拍照失败: ' + e.message, position: 'bottom' })
-    }
-  }
+  handleCapture('camera')
 }
 
 function onViewfinderCancel() {

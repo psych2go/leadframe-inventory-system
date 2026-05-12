@@ -149,11 +149,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getInventoryGrouped, getStockLogs, getInventoryAlerts, deleteStockLog } from '../api'
 import { isLowStock } from '../utils/qty'
 import { showConfirmDialog, showSuccessToast, showToast } from 'vant'
 
-const LOW_STOCK_THRESHOLD = 2  // 单位: K（2K = 2000 只）
+const router = useRouter()
 
 const stockLogs = ref([])
 const showLogs = ref(false)

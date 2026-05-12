@@ -4,20 +4,21 @@
 
 ## 功能
 
-- **拍照入库** — 手机拍照上传，PaddleOCR-VL-1.5 自动识别标签文字，提取规格、生产厂家、批号、数量、生产日期、过期日期，确认后入库
+- **拍照入库** — 手机拍照上传，PaddleOCR-VL-1.5 自动识别标签文字，提取封装形式、规格、镀银区域、表面处理、生产厂家、批号、数量、生产日期、过期日期，确认后入库
 - **拍照出库** — 拍照识别批号后自动匹配库存记录，选择后出库
 - **手动入库** — 直接填写表单入库
 - **出库操作** — 搜索库存，输入出库数量，库存自动扣减
-- **库存查询** — 搜索、分页浏览所有库存记录
-- **库存导出** — 一键导出 Excel 文件
-- **出入库记录** — 完整的出入库日志
-- **操作记录** — 所有数据变更自动记录（谁在什么时间做了什么操作）
-- **库存预警** — 数量低于 2K 自动预警提示
-- **物料编码建议** — 根据厂家规格自动建议历史物料编码
+- **库存查询** — 搜索、多维度筛选（封装形式/规格/镀银区域/表面处理）、分页浏览
+- **分组视图** — 按封装形式+规格+镀银区域+表面处理+厂家聚合展示，查看各组批次明细
+- **库存导出** — 一键导出 Excel 文件（两个 sheet：汇总 + 明细）
+- **出入库记录** — 完整的出入库日志，支持撤销单条记录（反向调整库存）
+- **操作记录** — 所有数据变更自动记录审计日志（谁在什么时间做了什么操作）
+- **库存预警** — 分组总量低于 2K 自动预警提示
+- **库存编辑** — 支持编辑单条记录和批量编辑同组记录，冲突时自动合并
 
 ### 入库规则
 
-以 **物料编码 + 批号** 为唯一标识。入库时如果已有相同物料编码+批号的记录，数量自动累加；否则新建记录。所有数量以 K（千）为单位，最多 3 位小数。
+以 **封装形式+规格+镀银区域+表面处理+厂家+批号** 为复合唯一标识。入库时如果已有相同组合的记录，数量自动累加；否则新建记录。所有数量以 K（千）为单位，最多 3 位小数。编辑记录时如果修改导致与已有记录冲突，自动合并（数量累加到已有记录，删除当前记录）。
 
 ### 企微集成
 
@@ -58,13 +59,13 @@
 leadframe-inventory-system/
 ├── backend/
 │   ├── main.py              FastAPI 入口，lifespan 建表，路由前缀 /api
-│   ├── database.py           SQLite 模型、CRUD、审计
+│   ├── database.py           SQLite 模型、CRUD、分组查询、审计
 │   ├── ocr_service.py        PaddleOCR 云端 API 封装
 │   ├── auth_service.py       JWT + 企微 access_token + jsapi_ticket
 │   ├── routers/
 │   │   ├── ocr.py            OCR 接口（20MB 限制）
-│   │   ├── inventory.py      库存管理 + 审计 + 导出
-│   │   └── auth.py           企微 OAuth + JS-SDK 签名
+│   │   ├── inventory.py      库存管理 + 分组查询 + 审计 + 导出
+│   │   └── auth.py           企微 OAuth + 密码登录 + JS-SDK 签名
 │   ├── uploads/              上传图片目录
 │   ├── .env                  OCR 凭据（gitignore）
 │   ├── Dockerfile
@@ -72,18 +73,25 @@ leadframe-inventory-system/
 ├── frontend/
 │   ├── src/
 │   │   ├── views/
-│   │   │   ├── Home.vue          首页仪表盘
-│   │   │   ├── Camera.vue        拍照入库（JS-SDK）
-│   │   │   ├── CameraOut.vue     拍照出库（JS-SDK）
-│   │   │   ├── StockIn.vue       手动入库
-│   │   │   ├── StockOut.vue      搜索出库
-│   │   │   ├── InventoryList.vue 库存列表+导出
-│   │   │   ├── InventoryDetail.vue 库存详情
-│   │   │   └── AuditLogs.vue     操作记录
+│   │   │   ├── Home.vue                  首页仪表盘
+│   │   │   ├── Camera.vue                拍照入库（JS-SDK）
+│   │   │   ├── CameraOut.vue             拍照出库（JS-SDK）
+│   │   │   ├── StockIn.vue               手动入库
+│   │   │   ├── StockOut.vue              搜索出库
+│   │   │   ├── InventoryList.vue         库存列表+导出
+│   │   │   ├── InventoryDetail.vue       库存详情
+│   │   │   ├── InventoryEdit.vue         库存编辑（冲突自动合并）
+│   │   │   ├── InventoryGroupedDetail.vue 分组库存详情
+│   │   │   ├── InventoryGroupedEdit.vue  分组库存编辑
+│   │   │   └── AuditLogs.vue             操作记录
+│   │   ├── components/
+│   │   │   ├── Viewfinder.vue            相机取景器组件
+│   │   │   └── CropModal.vue             图片裁剪弹窗
 │   │   ├── utils/
-│   │   │   └── wxsdk.js          企微 JS-SDK + 图片压缩
-│   │   ├── api/index.js          API 请求（baseURL = /inventory/api）
-│   │   └── router/index.js       路由（base /inventory/，8 个页面）
+│   │   │   ├── wxsdk.js                  企微 JS-SDK + 图片压缩
+│   │   │   └── qty.js                    数量单位工具（K 单位解析、低库存判断）
+│   │   ├── api/index.js          API 请求（baseURL = /inventory/api，26 个函数）
+│   │   └── router/index.js       路由（base /inventory/，12 个路由）
 │   ├── index.html               含 jweixin-1.2.0.js
 │   ├── vite.config.js           base: '/inventory/'
 │   └── package.json
@@ -321,6 +329,8 @@ npm run dev
 - 图片上传前自动压缩（最大 1600px，JPEG 80%），上传限制 20MB，仅接受图片类型
 - 上传图片路径做了路径遍历防护
 - 出库操作使用数据库锁（BEGIN IMMEDIATE）防止并发超额
+- 编辑冲突时自动合并（数量累加），不会产生重复记录
+- 撤销出入库记录时校验库存不会为负
 - JWT Secret 必须配置，未设置时无法签发 Token
 - 支持 `LOGIN_PASSWORD` 环境变量启用密码登录保护（30 天免登录）
 - 敏感凭据（`.env`、`backend/.env`、`certs/`）已加入 `.gitignore`

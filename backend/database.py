@@ -401,20 +401,6 @@ def stock_logs(inventory_id: int = None, page: int = 1, size: int = 20):
         return [dict(r) for r in rows]
 
 
-def inventory_delete(item_id: int, conn=None):
-    own_conn = conn is None
-    if own_conn:
-        conn = get_connection()
-    try:
-        conn.execute("DELETE FROM stock_log WHERE inventory_id = ?", (item_id,))
-        conn.execute("DELETE FROM inventory WHERE id = ?", (item_id,))
-        if own_conn:
-            conn.commit()
-    finally:
-        if own_conn:
-            conn.close()
-
-
 def write_audit(conn, user_id: str, user_name: str, action: str,
                 table_name: str, record_id: int,
                 snapshot: dict = None, changes: dict = None,
@@ -442,26 +428,21 @@ def write_audit(conn, user_id: str, user_name: str, action: str,
 def query_audit_logs(action: str = None, user_id: str = None,
                      page: int = 1, size: int = 20):
     with get_db() as conn:
-        query = "SELECT * FROM audit_log WHERE 1=1"
-        params = []
+        conditions, params = [], []
         if action:
-            query += " AND action = ?"
+            conditions.append("action = ?")
             params.append(action)
         if user_id:
-            query += " AND user_id = ?"
+            conditions.append("user_id = ?")
             params.append(user_id)
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-        params.extend([size, (page - 1) * size])
-        rows = conn.execute(query, params).fetchall()
+        where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
 
-        count_query = "SELECT COUNT(*) as total FROM audit_log WHERE 1=1"
-        count_params = []
-        if action:
-            count_query += " AND action = ?"
-            count_params.append(action)
-        if user_id:
-            count_query += " AND user_id = ?"
-            count_params.append(user_id)
-        total = conn.execute(count_query, count_params).fetchone()["total"]
+        rows = conn.execute(
+            f"SELECT * FROM audit_log{where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            params + [size, (page - 1) * size],
+        ).fetchall()
+        total = conn.execute(
+            f"SELECT COUNT(*) as total FROM audit_log{where}", params,
+        ).fetchone()["total"]
 
         return [dict(r) for r in rows], total

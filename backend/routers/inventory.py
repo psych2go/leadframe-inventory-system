@@ -4,7 +4,7 @@ import re
 import sqlite3
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query, Request, HTTPException
+from fastapi import APIRouter, Query, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -312,23 +312,12 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
     if not item:
         raise HTTPException(404, "库存记录不存在")
 
-    updates = {}
-    if req.package_type is not None:
-        updates["package_type"] = req.package_type
-    if req.spec is not None:
-        updates["spec"] = req.spec
-    if req.plating_zone is not None:
-        updates["plating_zone"] = req.plating_zone
-    if req.surface_treatment is not None:
-        updates["surface_treatment"] = req.surface_treatment
-    if req.manufacturer is not None:
-        updates["manufacturer"] = req.manufacturer
-    if req.batch_no is not None:
-        updates["batch_no"] = req.batch_no
-    if req.production_date is not None:
-        updates["production_date"] = req.production_date
-    if req.expiry_date is not None:
-        updates["expiry_date"] = req.expiry_date
+    updates = {k: v for k, v in {
+        "package_type": req.package_type, "spec": req.spec,
+        "plating_zone": req.plating_zone, "surface_treatment": req.surface_treatment,
+        "manufacturer": req.manufacturer, "batch_no": req.batch_no,
+        "production_date": req.production_date, "expiry_date": req.expiry_date,
+    }.items() if v is not None}
 
     if updates:
         # 计算变更 diff
@@ -348,20 +337,13 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
                 )
             except sqlite3.IntegrityError:
                 # 编辑后与已有记录冲突，自动合并：数量累加到已有记录，删除当前记录
-                new_pkg = updates.get("package_type", item.get("package_type"))
-                new_spec = updates.get("spec", item.get("spec"))
-                new_plating = updates.get("plating_zone", item.get("plating_zone"))
-                new_surface = updates.get("surface_treatment", item.get("surface_treatment"))
-                new_batch = updates.get("batch_no", item.get("batch_no"))
-                new_mfr = updates.get("manufacturer", item.get("manufacturer"))
-                new_prod_date = updates.get("production_date", item.get("production_date"))
-                new_exp_date = updates.get("expiry_date", item.get("expiry_date"))
-
+                merged = {**item, **updates}
                 target = conn.execute(
                     """SELECT id, quantity FROM inventory
                        WHERE package_type = ? AND spec = ? AND plating_zone = ?
                        AND surface_treatment = ? AND batch_no = ? AND id != ?""",
-                    (new_pkg, new_spec, new_plating, new_surface, new_batch, item_id),
+                    (merged["package_type"], merged["spec"], merged["plating_zone"],
+                     merged["surface_treatment"], merged["batch_no"], item_id),
                 ).fetchone()
 
                 if target:
@@ -372,7 +354,8 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
                         """UPDATE inventory SET quantity = ?, manufacturer = ?,
                            production_date = ?, expiry_date = ?,
                            updated_at = datetime('now','localtime') WHERE id = ?""",
-                        (merged_qty, new_mfr, new_prod_date, new_exp_date, target["id"]),
+                        (merged_qty, merged["manufacturer"], merged["production_date"],
+                         merged["expiry_date"], target["id"]),
                     )
                     # 迁移 stock_log 到目标记录
                     conn.execute(

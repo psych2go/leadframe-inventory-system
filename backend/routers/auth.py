@@ -22,7 +22,6 @@ from auth_service import (
 
 router = APIRouter()
 
-AUTH_REQUIRED = os.getenv("AUTH_REQUIRED", "false").lower() == "true"
 LOGIN_PASSWORD = os.getenv("LOGIN_PASSWORD", "")
 
 
