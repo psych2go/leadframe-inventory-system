@@ -372,7 +372,7 @@ async def recognize_image(image_bytes: bytes) -> dict:
         jsonl_resp = await _http_client.get(jsonl_url)
         jsonl_resp.raise_for_status()
 
-        # 解析 JSONL 结果，拼接所有页面的 OCR 文本
+        # 解析 JSONL 结果，提取识别文本
         ocr_texts = []
         for line in jsonl_resp.text.strip().split("\n"):
             line = line.strip()
@@ -380,11 +380,12 @@ async def recognize_image(image_bytes: bytes) -> dict:
                 continue
             result = json.loads(line).get("result", {})
             for res in result.get("ocrResults", []):
-                text = res.get("text", "")
-                if text:
-                    ocr_texts.append(text)
+                pruned = res.get("prunedResult", {})
+                rec_texts = pruned.get("rec_texts", [])
+                if rec_texts:
+                    ocr_texts.extend(rec_texts)
 
-        full_text = "\n".join(ocr_texts)
+        full_text = " ".join(ocr_texts)
 
         # 去除 HTML 标签和图片引用
         clean_raw = re.sub(r"<[^>]+>", "", full_text)
