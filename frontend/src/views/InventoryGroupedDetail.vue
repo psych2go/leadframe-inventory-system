@@ -89,7 +89,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast, showConfirmDialog } from 'vant'
 import { getInventoryGroupedDetail, stockOut, deleteInventory } from '../api'
@@ -111,6 +111,7 @@ const outQuantity = ref('')
 const submitting = ref(false)
 
 onMounted(() => { loadData() })
+watch(() => route.fullPath, () => { loadData() })
 
 async function loadData() {
   try {

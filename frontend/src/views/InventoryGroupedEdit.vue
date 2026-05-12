@@ -95,7 +95,16 @@ async function submit() {
       },
     )
     showSuccessToast('保存成功')
-    router.back()
+    router.replace({
+      name: 'InventoryGroupedDetail',
+      query: {
+        package_type: form.package_type.trim(),
+        spec: form.spec.trim(),
+        plating_zone: form.plating_zone.trim(),
+        surface_treatment: form.surface_treatment.trim(),
+        manufacturer: form.manufacturer.trim(),
+      },
+    })
   } catch (e) {
     showToast({ message: '保存失败: ' + (e.response?.data?.detail || e.message), position: 'bottom' })
   } finally {
