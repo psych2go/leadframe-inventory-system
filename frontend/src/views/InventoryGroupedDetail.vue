@@ -63,6 +63,37 @@
       <van-empty v-if="!batches.length" description="暂无批次数据" />
     </div>
 
+    <!-- 出入库记录 -->
+    <div class="section-title">
+      <span>出入库记录</span>
+    </div>
+    <div class="log-list">
+      <van-swipe-cell v-for="log in stockLogs" :key="log.id">
+        <div class="log-item">
+          <div class="log-icon" :class="log.type === 'in' ? 'log-in' : 'log-out'">
+            <van-icon
+              :name="log.type === 'in' ? 'down' : 'upgrade'"
+              :color="log.type === 'in' ? '#07c160' : '#ee0a24'"
+              size="20"
+            />
+          </div>
+          <div class="log-main">
+            <span class="log-title">{{ log.batch_no || '-' }}</span>
+            <span class="log-time">{{ log.created_at }}</span>
+            <span v-if="log.note" class="log-note">{{ log.note }}</span>
+          </div>
+          <span class="log-qty" :class="log.type === 'in' ? 'text-green' : 'text-red'">
+            {{ log.type === 'in' ? '+' : '-' }}{{ log.quantity }}K
+          </span>
+        </div>
+        <template #right>
+          <van-button square type="danger" text="删除" class="batch-delete-btn"
+            @click="onDeleteLog(log)" />
+        </template>
+      </van-swipe-cell>
+      <van-empty v-if="!stockLogs.length" description="暂无出入库记录" image="default" />
+    </div>
+
     <!-- 出库弹窗 -->
     <van-popup v-model:show="showOutForm" position="bottom" round :style="{ maxHeight: '70%' }">
       <div class="out-popup">
@@ -115,7 +146,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast, showConfirmDialog } from 'vant'
-import { getInventoryGroupedDetail, stockOut, deleteInventory, updateInventory } from '../api'
+import { getInventoryGroupedDetail, stockOut, deleteInventory, updateInventory, getStockLogs, deleteStockLog } from '../api'
 import { isLowStock, parseQtyToK } from '../utils/qty'
 
 const route = useRoute()
@@ -136,6 +167,7 @@ const showNoteForm = ref(false)
 const noteBatch = ref(null)
 const noteText = ref('')
 const noteSubmitting = ref(false)
+const stockLogs = ref([])
 
 onMounted(() => { loadData() })
 watch(() => route.fullPath, () => { loadData() })
@@ -152,9 +184,22 @@ async function loadData() {
     })
     Object.assign(info, data)
     batches.value = data.batches
+    loadStockLogs(data.batches)
   } catch (e) {
     showToast('获取详情失败')
   }
+}
+
+async function loadStockLogs(batchList) {
+  try {
+    const allLogs = []
+    for (const b of batchList) {
+      const data = await getStockLogs(b.id)
+      allLogs.push(...data.items.map(l => ({ ...l, batch_no: b.batch_no })))
+    }
+    allLogs.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    stockLogs.value = allLogs
+  } catch (e) {}
 }
 
 function onEdit() {
@@ -189,6 +234,24 @@ async function saveNote() {
     showToast({ message: '保存失败: ' + (e.response?.data?.detail || e.message), position: 'bottom' })
   } finally {
     noteSubmitting.value = false
+  }
+}
+
+async function onDeleteLog(log) {
+  const actionText = log.type === 'in' ? '入库' : '出库'
+  try {
+    await showConfirmDialog({
+      title: '确认删除',
+      message: `确定撤销这条${actionText}记录？将${log.type === 'in' ? '从库存中扣减' : '归还到库存'} ${log.quantity}K。`,
+      confirmButtonColor: '#ee0a24',
+    })
+  } catch { return }
+  try {
+    await deleteStockLog(log.id)
+    showSuccessToast('删除成功')
+    loadData()
+  } catch (e) {
+    showToast(e.response?.data?.detail || '删除失败')
   }
 }
 
@@ -252,6 +315,28 @@ async function doStockOut() {
 .note-popup { padding: 16px 0; }
 .note-popup-info { padding: 0 16px 12px; font-size: 13px; color: #666; }
 .note-popup :deep(.van-cell) { margin: 0 16px; border-radius: 8px; background: #f7f8fa; }
+
+.log-list { padding: 0 12px; }
+.log-item {
+  display: flex; align-items: center; padding: 12px;
+  background: white; border-radius: 8px; margin-bottom: 8px;
+}
+.log-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-right: 10px; flex-shrink: 0;
+}
+.log-in { background: #e8f5e9; }
+.log-out { background: #fff1f0; }
+.log-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.log-title { font-size: 14px; font-weight: 500; color: #333; }
+.log-time { font-size: 12px; color: #999; margin-top: 2px; }
+.log-note { font-size: 12px; color: #666; margin-top: 2px; }
+.log-qty { font-size: 15px; font-weight: 700; flex-shrink: 0; margin-left: 8px; }
+.text-green { color: #07c160; }
+.text-red { color: #ee0a24; }
+.grouped-detail :deep(.van-swipe-cell) { margin: 0 0 8px; }
+.grouped-detail :deep(.van-swipe-cell__right) { border-radius: 8px; }
 
 .out-popup { padding: 16px; }
 .out-popup-header {
