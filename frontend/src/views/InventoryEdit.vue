@@ -100,7 +100,7 @@ async function submit() {
   if (!form.spec.trim()) return showToast('请填写厂家规格')
   submitting.value = true
   try {
-    await updateInventory(route.params.id, {
+    const res = await updateInventory(route.params.id, {
       package_type: form.package_type.trim(),
       spec: form.spec.trim(),
       plating_zone: form.plating_zone.trim(),
@@ -111,7 +111,12 @@ async function submit() {
       expiry_date: form.expiry_date.trim(),
     })
     showSuccessToast('保存成功')
-    router.back()
+    // 合并时后端返回 merged_into，原记录已删除，需跳转到合并后的记录
+    if (res.merged_into) {
+      router.replace(`/inventory/${res.merged_into}`)
+    } else {
+      router.back()
+    }
   } catch (e) {
     showToast({ message: '保存失败: ' + (e.response?.data?.detail || e.message), position: 'bottom' })
   } finally {

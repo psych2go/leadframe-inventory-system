@@ -298,8 +298,8 @@ def _qty_to_num(val) -> float:
 
 def _num_to_qty(val) -> str:
     """将数字转为 K 单位的数量字符串（纯数字，不再加 K 后缀）"""
-    v = float(val)
-    return str(int(v)) if v == int(v) else str(v)
+    v = round(float(val), 3)
+    return str(int(v)) if v == int(v) else f"{v:.3f}".rstrip("0").rstrip(".")
 
 
 def stock_in(package_type: str, spec: str, plating_zone: str, surface_treatment: str,

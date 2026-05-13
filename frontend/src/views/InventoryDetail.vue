@@ -40,21 +40,30 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import { getInventory } from '../api'
 
 const route = useRoute()
+const router = useRouter()
 const item = ref({})
 
-onMounted(async () => {
+async function loadData() {
   try {
     item.value = await getInventory(route.params.id)
   } catch (e) {
-    showToast('获取详情失败')
+    if (e.response?.status === 404) {
+      showToast('该记录已被合并或删除')
+      router.replace('/inventory')
+    } else {
+      showToast('获取详情失败')
+    }
   }
-})
+}
+
+onMounted(loadData)
+watch(() => route.params.id, loadData)
 </script>
 
 <style scoped>
