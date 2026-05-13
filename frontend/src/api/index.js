@@ -115,8 +115,8 @@ export async function deleteInventory(id) {
   return data
 }
 
-export async function getStockLogs(inventoryId = null, page = 1) {
-  const { data } = await api.get('/stock-logs', { params: { inventory_id: inventoryId, page } })
+export async function getStockLogs(inventoryId = null, page = 1, size = 100) {
+  const { data } = await api.get('/stock-logs', { params: { inventory_id: inventoryId, page, size } })
   return data
 }
 

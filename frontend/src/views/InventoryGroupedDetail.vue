@@ -239,8 +239,13 @@ async function loadStockLogs(batchList) {
   try {
     const allLogs = []
     for (const b of batchList) {
-      const data = await getStockLogs(b.id)
-      allLogs.push(...data.items.map(l => ({ ...l, batch_no: b.batch_no })))
+      let page = 1
+      while (true) {
+        const data = await getStockLogs(b.id, page, 100)
+        allLogs.push(...data.items.map(l => ({ ...l, batch_no: b.batch_no })))
+        if (data.items.length < 100) break
+        page++
+      }
     }
     allLogs.sort((a, b) => b.created_at.localeCompare(a.created_at))
     stockLogs.value = allLogs
