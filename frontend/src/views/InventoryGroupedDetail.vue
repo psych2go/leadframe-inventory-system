@@ -180,7 +180,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { showToast, showSuccessToast, showConfirmDialog } from 'vant'
 import { getInventoryGroupedDetail, stockIn, stockOut, deleteInventory, updateInventory, getStockLogs, deleteStockLog } from '../api'
 import { isLowStock, parseQtyToK } from '../utils/qty'
@@ -210,6 +210,8 @@ const stockLogs = ref([])
 
 onMounted(() => { loadData() })
 watch(() => route.fullPath, () => { loadData() })
+// 从编辑页 router.replace 回来时，如果 query 没变 fullPath 不变，需要 onBeforeRouteUpdate 兜底
+onBeforeRouteUpdate(() => { loadData() })
 
 function getQueryParams() {
   const q = route.query

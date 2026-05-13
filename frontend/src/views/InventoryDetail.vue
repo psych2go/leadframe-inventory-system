@@ -41,7 +41,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { showToast } from 'vant'
 import { getInventory } from '../api'
 
@@ -49,9 +49,9 @@ const route = useRoute()
 const router = useRouter()
 const item = ref({})
 
-async function loadData() {
+async function loadData(id) {
   try {
-    item.value = await getInventory(route.params.id)
+    item.value = await getInventory(id)
   } catch (e) {
     if (e.response?.status === 404) {
       showToast('该记录已被合并或删除')
@@ -62,8 +62,15 @@ async function loadData() {
   }
 }
 
-onMounted(loadData)
-watch(() => route.params.id, loadData)
+onMounted(() => loadData(route.params.id))
+
+// 路由参数变化时（不同 id）
+watch(() => route.params.id, (id) => { if (id) loadData(id) })
+
+// 同 id 从编辑页返回时（router.replace 同一路由），onBeforeRouteUpdate 捕获
+onBeforeRouteUpdate((to) => {
+  if (to.params.id) loadData(to.params.id)
+})
 </script>
 
 <style scoped>

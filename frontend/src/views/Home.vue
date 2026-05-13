@@ -148,8 +148,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, onActivated } from 'vue'
+import { useRouter, onBeforeRouteUpdate } from 'vue-router'
 import { getInventoryGrouped, getStockLogs, getInventoryAlerts, deleteStockLog } from '../api'
 import { isLowStock } from '../utils/qty'
 import { showConfirmDialog, showSuccessToast, showToast } from 'vant'
@@ -163,14 +163,17 @@ const threshold = ref(2)
 const alertExpanded = ref(true)
 const totalItems = ref(0)
 
-onMounted(async () => {
+onMounted(loadInitData)
+onBeforeRouteUpdate(loadInitData)
+
+async function loadInitData() {
   try {
     const data = await getInventoryGrouped('', 1, 1)
     totalItems.value = data.total
   } catch (e) {}
   loadLogs()
   loadAlerts()
-})
+}
 
 async function loadLogs() {
   try {

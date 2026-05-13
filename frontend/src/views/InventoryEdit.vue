@@ -111,12 +111,9 @@ async function submit() {
       expiry_date: form.expiry_date.trim(),
     })
     showSuccessToast('保存成功')
-    // 合并时后端返回 merged_into，原记录已删除，需跳转到合并后的记录
-    if (res.merged_into) {
-      router.replace(`/inventory/${res.merged_into}`)
-    } else {
-      router.back()
-    }
+    // 始终用 replace 显式导航，确保详情页重新加载数据
+    const targetId = res.merged_into || route.params.id
+    router.replace(`/inventory/${targetId}`)
   } catch (e) {
     showToast({ message: '保存失败: ' + (e.response?.data?.detail || e.message), position: 'bottom' })
   } finally {
