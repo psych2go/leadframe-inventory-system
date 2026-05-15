@@ -125,6 +125,11 @@ export async function deleteStockLog(id) {
   return data
 }
 
+export async function getStockLogsGrouped(params, page = 1, size = 20) {
+  const { data } = await api.get('/stock-logs/grouped', { params: { ...params, page, size } })
+  return data
+}
+
 export async function getInventoryAlerts() {
   const { data } = await api.get('/inventory/alerts')
   return data

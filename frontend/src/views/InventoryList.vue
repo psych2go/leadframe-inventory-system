@@ -260,7 +260,7 @@ async function doExport() {
   height: 32px;
   border-radius: 16px;
 }
-.search-bar { padding: 8px 12px 0; }
+.search-bar { padding: 8px 12px; }
 .search-bar :deep(.van-search) {
   padding: 0;
   background: white;

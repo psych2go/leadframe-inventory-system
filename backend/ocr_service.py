@@ -110,6 +110,113 @@ def _resolve_aami_spec(raw_text: str) -> str:
     return desc
 
 
+def _normalize_box(box):
+    """将各种坐标格式统一为 [x_min, y_min, x_max, y_max]"""
+    if not isinstance(box, (list, tuple)) or len(box) != 4:
+        return None
+    if all(isinstance(v, (int, float)) for v in box):
+        return list(box)
+    if all(isinstance(v, (list, tuple)) and len(v) == 2 for v in box):
+        xs = [p[0] for p in box]
+        ys = [p[1] for p in box]
+        return [min(xs), min(ys), max(xs), max(ys)]
+    return None
+
+
+def _y_overlap_ratio(box_a, box_b):
+    """计算两个文本框的 Y 轴重合度（0~1），基于较矮框的高度归一化"""
+    a_ymin, a_ymax = box_a[1], box_a[3]
+    b_ymin, b_ymax = box_b[1], box_b[3]
+    overlap = max(0, min(a_ymax, b_ymax) - max(a_ymin, b_ymin))
+    min_height = min(a_ymax - a_ymin, b_ymax - b_ymin)
+    if min_height <= 0:
+        return 0
+    return overlap / min_height
+
+
+def _is_cjk(ch):
+    """判断字符是否为 CJK 统一汉字"""
+    cp = ord(ch)
+    return (0x4E00 <= cp <= 0x9FFF or 0x3400 <= cp <= 0x4DBF
+            or 0x3000 <= cp <= 0x303F or 0xFF00 <= cp <= 0xFFEF)
+
+
+def _smart_join(texts):
+    """智能拼接：中文字符间不加空格，英文/数字间加空格"""
+    if not texts:
+        return ""
+    result = texts[0]
+    for t in texts[1:]:
+        if result and t and _is_cjk(result[-1]) and _is_cjk(t[0]):
+            result += t
+        else:
+            result += " " + t
+    return result
+
+
+def _merge_blocks_by_coords(text_blocks):
+    """基于 Y 轴重合度分行，每行按 X 坐标排序后拼接文本
+
+    使用行基准线（Y 中心均值）判断新块归属，避免 any() 链式塌陷：
+    倾斜标签下 A-B 重合、B-C 重合但 A-C 不重合，any() 会把三者串成一行。
+    改为只与基准线比较，确保所有同行块都与行的整体位置对齐。
+    """
+    if not text_blocks:
+        return []
+
+    sorted_blocks = sorted(
+        text_blocks,
+        key=lambda b: (b["box"][1] + b["box"][3]) / 2,
+    )
+
+    lines = []
+    current_line = [sorted_blocks[0]]
+
+    def _line_baseline():
+        """当前行所有块的 Y 中心均值"""
+        return sum((b["box"][1] + b["box"][3]) / 2 for b in current_line) / len(current_line)
+
+    def _line_bbox():
+        """当前行的合并 Y 范围 [y_min, y_max]"""
+        ymin = min(b["box"][1] for b in current_line)
+        ymax = max(b["box"][3] for b in current_line)
+        return [ymin, ymax]
+
+    for block in sorted_blocks[1:]:
+        bbox = _line_bbox()
+        overlap = max(0, min(bbox[1], block["box"][3]) - max(bbox[0], block["box"][1]))
+        line_height = bbox[1] - bbox[0]
+        block_height = block["box"][3] - block["box"][1]
+        min_h = min(line_height, block_height)
+        ratio = overlap / min_h if min_h > 0 else 0
+        if ratio > 0.4:
+            current_line.append(block)
+        else:
+            current_line.sort(key=lambda b: b["box"][0])
+            lines.append(_smart_join([b["text"] for b in current_line]))
+            current_line = [block]
+
+    if current_line:
+        current_line.sort(key=lambda b: b["box"][0])
+        lines.append(_smart_join([b["text"] for b in current_line]))
+
+    return lines
+
+
+def _merge_by_colon(ocr_texts):
+    """无坐标时的兜底合并：以冒号结尾的文本与下一项拼接"""
+    lines = []
+    i = 0
+    while i < len(ocr_texts):
+        text = ocr_texts[i].strip()
+        i += 1
+        if text and (text.endswith(':') or text.endswith('：')) and i < len(ocr_texts):
+            text += ' ' + ocr_texts[i].strip()
+            i += 1
+        lines.append(text)
+    return lines
+
+
 def _format_k(val: float) -> str:
     """将 K 单位数值格式化，保留最多 3 位小数，不保留无意义尾零"""
     s = f"{round(val, 3):.3f}".rstrip("0")
@@ -299,15 +406,16 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
         if "/" in qty_raw:
             parts = qty_raw.split("/", 1)
             qty_raw = next((p.strip() for p in parts if re.search(r'\d\s*[kK]', p)), parts[-1].strip())
-        # 处理单位在下一行的情况（如 "Qty: 200\n条" → 拼接为 "200条"）
-        for kw in ["Q'ty", "Qty", "qty", "QTY", "数量", "件数", "总数"]:
-            m = re.search(
-                rf"\b{re.escape(kw)}\s*[:：]?\s*{re.escape(qty_raw)}\s*\n+\s*(条|PCS|pcs|只|万)",
-                clean_text,
-            )
-            if m:
-                qty_raw = qty_raw + m.group(1)
-                break
+        # 兜底：纯数字（无单位）且下一行紧跟单位词（坐标合并已处理同行情况，此为跨行安全网）
+        if re.match(r"^[\d.]+$", qty_raw):
+            for kw in ["Q'ty", "Qty", "qty", "QTY", "数量", "件数", "总数"]:
+                m = re.search(
+                    rf"\b{re.escape(kw)}\s*[:：]?\s*{re.escape(qty_raw)}\s*\n+\s*(条|PCS|pcs|只|万)",
+                    clean_text,
+                )
+                if m:
+                    qty_raw = qty_raw + m.group(1)
+                    break
         result["quantity"] = _normalize_qty(qty_raw)
 
     # 生产日期
@@ -392,8 +500,8 @@ async def recognize_image(image_bytes: bytes) -> dict:
         jsonl_resp = await _http_client.get(jsonl_url)
         jsonl_resp.raise_for_status()
 
-        # 解析 JSONL 结果，提取识别文本并按行整理
-        ocr_texts = []
+        # 解析 JSONL 结果，收集带坐标的文本块
+        text_blocks = []
         for line in jsonl_resp.text.strip().split("\n"):
             line = line.strip()
             if not line:
@@ -402,19 +510,24 @@ async def recognize_image(image_bytes: bytes) -> dict:
             for res in result.get("ocrResults", []):
                 pruned = res.get("prunedResult", {})
                 rec_texts = pruned.get("rec_texts", [])
-                if rec_texts:
-                    ocr_texts.extend(rec_texts)
+                rec_boxes = pruned.get("rec_boxes", [])
+                for idx, text in enumerate(rec_texts):
+                    text = text.strip()
+                    if not text:
+                        continue
+                    box = None
+                    if rec_boxes and idx < len(rec_boxes):
+                        box = _normalize_box(rec_boxes[idx])
+                    text_blocks.append({"text": text, "box": box})
 
-        # 将 rec_texts 合并为逻辑行：以 : 或 ：结尾的项与其后1个项合并
-        lines = []
-        i = 0
-        while i < len(ocr_texts):
-            text = ocr_texts[i].strip()
-            i += 1
-            if text and (text.endswith(':') or text.endswith('：')) and i < len(ocr_texts):
-                text += ' ' + ocr_texts[i].strip()
-                i += 1
-            lines.append(text)
+        # 有坐标时用 Y 轴分行合并，否则退化为冒号拼接
+        coord_blocks = [b for b in text_blocks if b["box"] is not None]
+        no_coord_texts = [b["text"] for b in text_blocks if b["box"] is None]
+        if coord_blocks and len(coord_blocks) / max(len(text_blocks), 1) > 0.7:
+            lines = _merge_blocks_by_coords(coord_blocks)
+            lines.extend(no_coord_texts)
+        else:
+            lines = _merge_by_colon([b["text"] for b in text_blocks])
 
         full_text = "\n".join(lines)
 

@@ -36,10 +36,9 @@
       <van-cell-group title="OCR 识别结果">
         <van-cell title="批号" :value="parsed.batch_no || '-'" />
         <van-cell title="数量" :value="parsed.quantity || '-'" />
-        <van-cell title="生产厂家" :value="parsed.manufacturer || '-'" />
       </van-cell-group>
 
-      <!-- 多条匹配时列表选择 -->
+      <!-- 匹配库存列表 -->
       <template v-if="matchedItems.length > 0">
         <van-cell-group :title="`匹配到 ${matchedItems.length} 条库存记录（按批号匹配）`">
           <van-cell
@@ -63,17 +62,6 @@
         </van-cell-group>
 
         <div v-if="selectedItem" class="out-form">
-          <van-cell-group title="已选库存">
-            <van-cell title="封装形式" :value="selectedItem.package_type || '-'" />
-            <van-cell title="规格" :value="selectedItem.spec || '-'" />
-            <van-cell title="镀银区域" :value="selectedItem.plating_zone || '-'" />
-            <van-cell title="表面粗化处理" :value="selectedItem.surface_treatment || '-'" />
-            <van-cell title="生产厂家" :value="selectedItem.manufacturer || '-'" />
-            <van-cell title="批号" :value="selectedItem.batch_no || '-'" />
-            <van-cell title="当前库存(K)" :value="String(selectedItem.quantity)" />
-            <van-cell v-if="selectedItem.note" title="备注" :value="selectedItem.note" />
-          </van-cell-group>
-
           <van-cell-group title="出库信息">
             <van-field v-model="outQuantity" label="出库数量(K)" type="number" placeholder="请输入出库数量" required />
           </van-cell-group>
@@ -86,10 +74,10 @@
         </div>
       </template>
 
-      <van-empty v-else-if="searchDone" description="未找到匹配批号的库存记录" />
+      <van-empty v-else-if="searchDone" description="未找到匹配批号的库存记录" class="compact-empty" />
 
-      <div class="submit-bar" v-if="!matchedItems.length && searchDone">
-        <van-button block @click="$router.push({ path: '/stock-out', query: { search: [parsed.batch_no, parsed.spec].filter(Boolean).join(' ') } })">手动搜索出库</van-button>
+      <div class="manual-out-bar" v-if="!matchedItems.length && searchDone">
+        <van-button block size="small" @click="$router.push({ path: '/stock-out', query: { search: [parsed.batch_no, parsed.spec].filter(Boolean).join(' ') } })">手动搜索出库</van-button>
       </div>
 
       <div class="raw-text" v-if="ocrResult.raw_text">
@@ -313,6 +301,9 @@ async function doStockOut() {
   color: #333;
 }
 .submit-bar { padding: 16px; }
+.manual-out-bar { padding: 0 16px 12px; }
+.compact-empty { padding: 24px 0 4px; }
+.compact-empty :deep(.van-empty__image) { width: 64px; height: 64px; }
 .qty { font-size: 14px; font-weight: bold; color: #1989fa; }
 .item-title { font-weight: bold; font-size: 14px; }
 .selected-item { background-color: #f0f9ff; }

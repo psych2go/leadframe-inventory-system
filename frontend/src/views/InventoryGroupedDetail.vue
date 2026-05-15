@@ -74,30 +74,35 @@
       <span>出入库记录</span>
     </div>
     <div class="log-list">
-      <van-swipe-cell v-for="log in stockLogs" :key="log.id">
-        <div class="log-item">
-          <div class="log-icon" :class="log.type === 'in' ? 'log-in' : 'log-out'">
-            <van-icon
-              :name="log.type === 'in' ? 'down' : 'upgrade'"
-              :color="log.type === 'in' ? '#07c160' : '#ee0a24'"
-              size="20"
-            />
+      <van-list v-model:loading="logsLoading" :finished="logsFinished" @load="loadMoreLogs" :immediate-check="false">
+        <van-swipe-cell v-for="log in stockLogs" :key="log.id">
+          <div class="log-item">
+            <div class="log-icon" :class="log.type === 'in' ? 'log-in' : 'log-out'">
+              <van-icon
+                :name="log.type === 'in' ? 'down' : 'upgrade'"
+                :color="log.type === 'in' ? '#07c160' : '#ee0a24'"
+                size="20"
+              />
+            </div>
+            <div class="log-main">
+              <span class="log-title">{{ log.batch_no || '-' }}</span>
+              <span class="log-time">{{ log.created_at }}</span>
+              <span v-if="log.note" class="log-note">{{ log.note }}</span>
+            </div>
+            <span class="log-qty" :class="log.type === 'in' ? 'text-green' : 'text-red'">
+              {{ log.type === 'in' ? '+' : '-' }}{{ log.quantity }}K
+            </span>
           </div>
-          <div class="log-main">
-            <span class="log-title">{{ log.batch_no || '-' }}</span>
-            <span class="log-time">{{ log.created_at }}</span>
-            <span v-if="log.note" class="log-note">{{ log.note }}</span>
-          </div>
-          <span class="log-qty" :class="log.type === 'in' ? 'text-green' : 'text-red'">
-            {{ log.type === 'in' ? '+' : '-' }}{{ log.quantity }}K
-          </span>
-        </div>
-        <template #right>
-          <van-button square type="danger" text="删除" class="batch-delete-btn"
-            @click="onDeleteLog(log)" />
+          <template #right>
+            <van-button square type="danger" text="删除" class="batch-delete-btn"
+              @click="onDeleteLog(log)" />
+          </template>
+        </van-swipe-cell>
+        <template #finished>
+          <span v-if="stockLogs.length" class="log-finished">没有更多了</span>
         </template>
-      </van-swipe-cell>
-      <van-empty v-if="!stockLogs.length" description="暂无出入库记录" image="default" />
+      </van-list>
+      <van-empty v-if="!logsLoading && !stockLogs.length" description="暂无出入库记录" image="default" />
     </div>
 
     <!-- 出库弹窗 -->
@@ -180,9 +185,9 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
-import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast, showConfirmDialog } from 'vant'
-import { getInventoryGroupedDetail, stockIn, stockOut, deleteInventory, updateInventory, getStockLogs, deleteStockLog } from '../api'
+import { getInventoryGroupedDetail, stockIn, stockOut, deleteInventory, updateInventory, getStockLogsGrouped, deleteStockLog } from '../api'
 import { isLowStock, parseQtyToK } from '../utils/qty'
 
 const route = useRoute()
@@ -207,11 +212,12 @@ const noteBatch = ref(null)
 const noteText = ref('')
 const noteSubmitting = ref(false)
 const stockLogs = ref([])
+const logsLoading = ref(false)
+const logsFinished = ref(false)
+let logsPage = 1
 
 onMounted(() => { loadData() })
 watch(() => route.fullPath, () => { loadData() })
-// 从编辑页 router.replace 回来时，如果 query 没变 fullPath 不变，需要 onBeforeRouteUpdate 兜底
-onBeforeRouteUpdate(() => { loadData() })
 
 function getQueryParams() {
   const q = route.query
@@ -229,27 +235,42 @@ async function loadData() {
     const data = await getInventoryGroupedDetail(getQueryParams())
     Object.assign(info, data)
     batches.value = data.batches
-    loadStockLogs(data.batches)
+    resetLogs()
+    loadMoreLogs()
   } catch (e) {
-    showToast('获取详情失败')
+    if (e.response?.status === 404) {
+      showToast('该分组不存在或已被修改')
+      router.replace('/inventory')
+    } else {
+      showToast('获取详情失败')
+    }
   }
 }
 
-async function loadStockLogs(batchList) {
+function resetLogs() {
+  stockLogs.value = []
+  logsPage = 1
+  logsFinished.value = false
+  logsLoading.value = false
+}
+
+async function loadMoreLogs() {
   try {
-    const allLogs = []
-    for (const b of batchList) {
-      let page = 1
-      while (true) {
-        const data = await getStockLogs(b.id, page, 100)
-        allLogs.push(...data.items.map(l => ({ ...l, batch_no: b.batch_no })))
-        if (data.items.length < 100) break
-        page++
-      }
+    const data = await getStockLogsGrouped(getQueryParams(), logsPage, 20)
+    if (logsPage === 1) {
+      stockLogs.value = data.items
+    } else {
+      stockLogs.value.push(...data.items)
     }
-    allLogs.sort((a, b) => b.created_at.localeCompare(a.created_at))
-    stockLogs.value = allLogs
-  } catch (e) {}
+    logsLoading.value = false
+    if (stockLogs.value.length >= data.total) {
+      logsFinished.value = true
+    } else {
+      logsPage++
+    }
+  } catch (e) {
+    logsLoading.value = false
+  }
 }
 
 function onEdit() {
@@ -387,6 +408,7 @@ async function doStockOut() {
 .note-popup :deep(.van-cell) { margin: 0 16px; border-radius: 8px; background: #f7f8fa; }
 
 .log-list { padding: 0 12px; }
+.log-finished { display: block; text-align: center; padding: 12px 0; font-size: 13px; color: #999; }
 .log-item {
   display: flex; align-items: center; padding: 12px;
   background: white; border-radius: 8px; margin-bottom: 8px;

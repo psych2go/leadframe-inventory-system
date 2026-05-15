@@ -409,6 +409,23 @@ def get_stock_logs(inventory_id: int = None, page: int = Query(1, ge=1), size: i
     return {"items": logs}
 
 
+@router.get("/stock-logs/grouped")
+def get_stock_logs_grouped(
+    package_type: str = Query(""),
+    spec: str = Query(""),
+    plating_zone: str = Query(""),
+    surface_treatment: str = Query(""),
+    manufacturer: str = Query(""),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+):
+    items, total = db.stock_logs_grouped(
+        package_type, spec, plating_zone, surface_treatment, manufacturer,
+        page, size,
+    )
+    return {"items": items, "total": total, "page": page, "size": size}
+
+
 @router.delete("/stock-logs/{log_id}")
 def delete_stock_log(log_id: int, request: Request):
     user_id, user_name = _audit_user(request)

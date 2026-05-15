@@ -401,6 +401,46 @@ def stock_logs(inventory_id: int = None, page: int = 1, size: int = 20):
         return [dict(r) for r in rows]
 
 
+def stock_logs_grouped(package_type="", spec="", plating_zone="",
+                       surface_treatment="", manufacturer="",
+                       page=1, size=20):
+    with get_db() as conn:
+        where = ""
+        params = []
+        if package_type:
+            where += " AND i.package_type = ?"
+            params.append(package_type)
+        if spec:
+            where += " AND i.spec = ?"
+            params.append(spec)
+        if plating_zone:
+            where += " AND i.plating_zone = ?"
+            params.append(plating_zone)
+        if surface_treatment:
+            where += " AND i.surface_treatment = ?"
+            params.append(surface_treatment)
+        if manufacturer:
+            where += " AND i.manufacturer = ?"
+            params.append(manufacturer)
+
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM stock_log sl JOIN inventory i ON sl.inventory_id = i.id WHERE 1=1{where}",
+            params,
+        ).fetchone()[0]
+
+        query = f"""
+            SELECT sl.*, i.spec, i.batch_no, i.package_type, i.plating_zone,
+                   i.surface_treatment, i.manufacturer
+            FROM stock_log sl JOIN inventory i ON sl.inventory_id = i.id
+            WHERE 1=1{where}
+            ORDER BY sl.created_at DESC
+            LIMIT ? OFFSET ?
+        """
+        params.extend([size, (page - 1) * size])
+        rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows], total
+
+
 def write_audit(conn, user_id: str, user_name: str, action: str,
                 table_name: str, record_id: int,
                 snapshot: dict = None, changes: dict = None,
