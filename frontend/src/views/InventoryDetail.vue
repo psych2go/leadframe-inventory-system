@@ -54,7 +54,6 @@ async function loadData(id) {
     item.value = await getInventory(id)
   } catch (e) {
     if (e.response?.status === 404) {
-      showToast('该记录已被合并或删除')
       router.replace('/inventory')
     } else {
       showToast('获取详情失败')

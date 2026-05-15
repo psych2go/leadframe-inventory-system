@@ -111,9 +111,7 @@ async function submit() {
       expiry_date: form.expiry_date.trim(),
     })
     showSuccessToast('保存成功')
-    // 始终用 replace 显式导航，确保详情页重新加载数据
-    const targetId = res.merged_into || route.params.id
-    router.replace(`/inventory/${targetId}`)
+    router.replace('/inventory')
   } catch (e) {
     showToast({ message: '保存失败: ' + (e.response?.data?.detail || e.message), position: 'bottom' })
   } finally {
