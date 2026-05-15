@@ -76,7 +76,7 @@ def _resolve_aami_spec(raw_text: str) -> str:
     def extract(keywords):
         for keyword in keywords:
             esc = re.escape(keyword)
-            pattern = rf"\b{esc}\s*[:：]\s*(.+?)(?:\n|$)"
+            pattern = rf"\b{esc}\.?\s*[:：]\s*(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 val = match.group(1).strip().lstrip(":：")
@@ -338,7 +338,7 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
     def extract(keywords):
         for keyword in keywords:
             esc = re.escape(keyword)
-            pattern = rf"\b{esc}\s*[:：]\s*(.+?)(?:\n|$)"
+            pattern = rf"\b{esc}\.?\s*[:：]\s*(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 val = match.group(1).strip().lstrip(":：")

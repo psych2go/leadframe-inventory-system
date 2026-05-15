@@ -118,7 +118,7 @@ const loading = ref(false)
 const submitting = ref(false)
 const ocrResult = ref(null)
 const parsed = reactive({
-  spec: '', manufacturer: '', batch_no: '',
+  spec: '', manufacturer: '', batch_no: '', quantity: '',
 })
 const matchedItems = ref([])
 const selectedItem = ref(null)
@@ -190,6 +190,7 @@ async function onFileRead(fileInfo) {
       parsed.spec = result.parsed.spec || ''
       parsed.manufacturer = result.parsed.manufacturer || ''
       parsed.batch_no = result.parsed.batch_no || ''
+      parsed.quantity = result.parsed.quantity || ''
       outQuantity.value = result.parsed.quantity || ''
     }
     await findMatchByBatch()
