@@ -239,7 +239,6 @@ async function loadData() {
     loadMoreLogs()
   } catch (e) {
     if (e.response?.status === 404) {
-      showToast('该分组不存在或已被修改')
       router.replace('/inventory')
     } else {
       showToast('获取详情失败')
