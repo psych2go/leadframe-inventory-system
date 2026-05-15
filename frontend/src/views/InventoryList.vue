@@ -279,13 +279,30 @@ async function doExport() {
 .search-bar :deep(.van-search__content) {
   border-radius: 8px;
   padding-left: 12px;
+  display: flex;
+  align-items: center;
+}
+.search-bar :deep(.van-search__field) {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 0;
+}
+.search-bar :deep(.van-field__left-icon) {
+  display: flex;
+  align-items: center;
+  line-height: 1;
 }
 .search-bar :deep(.van-field__body) {
-  min-height: 34px;
+  min-height: 0;
+  height: auto;
+  display: flex;
+  align-items: center;
+  flex: 1;
 }
 .search-bar :deep(.van-field__control) {
-  line-height: 34px;
-  height: 34px;
+  height: 24px;
+  line-height: 24px;
   padding: 0;
 }
 .filter-bar { padding: 4px 12px 8px; }
