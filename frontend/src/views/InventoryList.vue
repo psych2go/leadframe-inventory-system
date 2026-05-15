@@ -277,13 +277,15 @@ async function doExport() {
 }
 .search-bar :deep(.van-search__content) {
   border-radius: 8px;
-  display: flex;
-  align-items: center;
-  padding: 4px 12px;
+  padding-left: 12px;
+}
+.search-bar :deep(.van-field__body) {
+  min-height: 34px;
 }
 .search-bar :deep(.van-field__control) {
-  line-height: 24px;
-  height: 24px;
+  line-height: 34px;
+  height: 34px;
+  padding: 0;
 }
 .filter-bar { padding: 4px 12px 8px; }
 .filter-row { display: flex; gap: 8px; flex-wrap: wrap; }
