@@ -62,7 +62,7 @@ const submitting = ref(false)
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
 
-const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }, { text: '无', value: '' }]
+const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }, { text: '局部镀银', value: '局部镀银' }, { text: '无', value: '' }]
 const surfaceOptions = [{ text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }, { text: '无', value: '' }]
 
 const form = reactive({

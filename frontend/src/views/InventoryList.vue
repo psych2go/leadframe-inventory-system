@@ -128,6 +128,7 @@ const platingOptions = [
   { text: '全部', value: '' },
   { text: '单环镀', value: '单环镀' },
   { text: '双环镀', value: '双环镀' },
+  { text: '局部镀银', value: '局部镀银' },
 ]
 const surfaceOptions = [
   { text: '全部', value: '' },
