@@ -188,7 +188,8 @@ def _build_search_conditions(search: str = None,
                               package_type: str = None,
                               spec: str = None,
                               plating_zone: str = None,
-                              surface_treatment: str = None):
+                              surface_treatment: str = None,
+                              manufacturer: str = None):
     """构建搜索 + 筛选 WHERE 条件和参数"""
     where = ""
     params = []
@@ -209,14 +210,18 @@ def _build_search_conditions(search: str = None,
     if surface_treatment:
         where += " AND surface_treatment = ?"
         params.append(surface_treatment)
+    if manufacturer:
+        where += " AND manufacturer = ?"
+        params.append(manufacturer)
     return where, params
 
 
 def inventory_list(search: str = None, page: int = 1, size: int = 20,
                     package_type: str = None, spec: str = None,
-                    plating_zone: str = None, surface_treatment: str = None):
+                    plating_zone: str = None, surface_treatment: str = None,
+                    manufacturer: str = None):
     with get_db() as conn:
-        where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment)
+        where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment, manufacturer)
 
         rows = conn.execute(
             f"SELECT * FROM inventory WHERE 1=1{where} ORDER BY updated_at DESC LIMIT ? OFFSET ?",
@@ -235,9 +240,10 @@ def inventory_list(search: str = None, page: int = 1, size: int = 20,
 def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
                            package_type: str = None, spec: str = None,
                            plating_zone: str = None, surface_treatment: str = None,
+                           manufacturer: str = None,
                            alert_only: bool = False):
     with get_db() as conn:
-        where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment)
+        where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment, manufacturer)
 
         having = " HAVING COALESCE(SUM(CAST(quantity AS REAL)), 0) < 2" if alert_only else ""
 

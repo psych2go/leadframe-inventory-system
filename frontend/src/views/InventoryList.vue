@@ -29,6 +29,10 @@
           <span class="chip-label">粗化</span>
           <span class="chip-val">{{ filterLabel(filters.surface_treatment) }}</span>
         </div>
+        <div class="filter-chip" :class="{ active: filters.manufacturer }" @click="showMfrPicker = true">
+          <span class="chip-label">厂家</span>
+          <span class="chip-val">{{ filters.manufacturer || '全部' }}</span>
+        </div>
       </div>
       <div v-if="hasActiveFilters" class="filter-bar-bottom">
         <span class="filter-reset-link" @click="resetFilters">清除所有筛选</span>
@@ -47,6 +51,9 @@
     </van-popup>
     <van-popup v-model:show="showSurfacePicker" round position="bottom">
       <van-picker :columns="surfaceOptions" @confirm="onSurfaceConfirm" @cancel="showSurfacePicker = false" />
+    </van-popup>
+    <van-popup v-model:show="showMfrPicker" round position="bottom">
+      <van-picker :columns="mfrOptions" @confirm="onMfrConfirm" @cancel="showMfrPicker = false" />
     </van-popup>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
@@ -83,7 +90,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showSuccessToast, showDialog } from 'vant'
 import { getInventoryGrouped, deleteInventoryGrouped, exportInventory, getFilterOptions } from '../api'
@@ -91,7 +98,8 @@ import { isLowStock } from '../utils/qty'
 
 const router = useRouter()
 const route = useRoute()
-const isAlertMode = !!route.query.alert
+const isAlertMode = computed(() => !!route.query.alert)
+watch(() => route.query.alert, () => loadData())
 const searchText = ref('')
 loadFilterOptions()
 const items = ref([])
@@ -103,6 +111,7 @@ const showPkgPicker = ref(false)
 const showSpecPicker = ref(false)
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
+const showMfrPicker = ref(false)
 let page = 1
 
 const filters = reactive({
@@ -110,6 +119,7 @@ const filters = reactive({
   spec: '',
   plating_zone: '',
   surface_treatment: '',
+  manufacturer: '',
 })
 
 const pkgOptions = ref([{ text: '全部', value: '' }])
@@ -125,6 +135,7 @@ const surfaceOptions = [
   { text: 'SRC', value: 'SRC' },
   { text: 'ERC', value: 'ERC' },
 ]
+const mfrOptions = ref([{ text: '全部', value: '' }])
 
 const filterLabel = (v) => v || '全部'
 
@@ -133,6 +144,7 @@ async function loadFilterOptions() {
     const opts = await getFilterOptions()
     pkgOptions.value = [{ text: '全部', value: '' }, ...opts.package_types.map(v => ({ text: v, value: v }))]
     specOptions.value = [{ text: '全部', value: '' }, ...opts.specs.map(v => ({ text: v, value: v }))]
+    mfrOptions.value = [{ text: '全部', value: '' }, ...opts.manufacturers.map(v => ({ text: v, value: v }))]
   } catch (e) {}
 }
 
@@ -147,9 +159,10 @@ const onPkgConfirm = makePickerHandler('package_type', showPkgPicker)
 const onSpecConfirm = makePickerHandler('spec', showSpecPicker)
 const onPlatingConfirm = makePickerHandler('plating_zone', showPlatingPicker)
 const onSurfaceConfirm = makePickerHandler('surface_treatment', showSurfacePicker)
+const onMfrConfirm = makePickerHandler('manufacturer', showMfrPicker)
 
 const hasActiveFilters = computed(() =>
-  filters.package_type || filters.spec || filters.plating_zone || filters.surface_treatment,
+  filters.package_type || filters.spec || filters.plating_zone || filters.surface_treatment || filters.manufacturer,
 )
 
 function getFilterParams() {
@@ -180,7 +193,7 @@ async function loadData() {
 
 async function loadMore() {
   try {
-    const data = await getInventoryGrouped(searchText.value, page, getFilterParams(), isAlertMode)
+    const data = await getInventoryGrouped(searchText.value, page, getFilterParams(), isAlertMode.value)
     if (page === 1) {
       items.value = data.items
     } else {
@@ -262,7 +275,16 @@ async function doExport() {
   background: white;
   border-radius: 8px;
 }
-.search-bar :deep(.van-search__content) { border-radius: 8px; }
+.search-bar :deep(.van-search__content) {
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+}
+.search-bar :deep(.van-field__control) {
+  line-height: 24px;
+  height: 24px;
+}
 .filter-bar { padding: 4px 12px 8px; }
 .filter-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .filter-chip {

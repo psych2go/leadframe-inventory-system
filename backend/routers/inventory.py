@@ -85,9 +85,13 @@ def get_filter_options():
         spec_rows = conn.execute(
             "SELECT DISTINCT spec FROM inventory WHERE spec != '' ORDER BY spec"
         ).fetchall()
+        mfr_rows = conn.execute(
+            "SELECT DISTINCT manufacturer FROM inventory WHERE manufacturer != '' ORDER BY manufacturer"
+        ).fetchall()
     return {
         "package_types": [r["package_type"] for r in pkg_rows],
         "specs": [r["spec"] for r in spec_rows],
+        "manufacturers": [r["manufacturer"] for r in mfr_rows],
     }
 
 
@@ -117,12 +121,14 @@ def get_inventory_alerts():
 def list_inventory_grouped(search: str = None,
                             package_type: str = None, spec: str = None,
                             plating_zone: str = None, surface_treatment: str = None,
+                            manufacturer: str = None,
                             alert: bool = Query(False),
                             page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100)):
     groups, total = db.inventory_list_grouped(
         search, page, size,
         package_type=package_type, spec=spec,
         plating_zone=plating_zone, surface_treatment=surface_treatment,
+        manufacturer=manufacturer,
         alert_only=alert,
     )
     return {"items": groups, "total": total, "page": page, "size": size}
