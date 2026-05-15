@@ -177,15 +177,8 @@ async function loadInitData() {
 
 async function loadLogs() {
   try {
-    const allLogs = []
-    let page = 1
-    while (true) {
-      const data = await getStockLogs(null, page, 100)
-      allLogs.push(...data.items)
-      if (data.items.length < 100) break
-      page++
-    }
-    stockLogs.value = allLogs
+    const data = await getStockLogs(null, 1, 50)
+    stockLogs.value = data.items
   } catch (e) {}
 }
 

@@ -86,7 +86,7 @@
 import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showSuccessToast, showDialog } from 'vant'
-import { getInventoryGrouped, deleteInventory, exportInventory, getInventoryGroupedDetail, getFilterOptions } from '../api'
+import { getInventoryGrouped, deleteInventoryGrouped, exportInventory, getFilterOptions } from '../api'
 import { isLowStock } from '../utils/qty'
 
 const router = useRouter()
@@ -217,17 +217,13 @@ async function doDelete(item) {
       message: `删除「${[item.package_type, item.spec, item.plating_zone, item.surface_treatment].filter(Boolean).join('-')}」的所有批次（共 ${item.batch_count} 批）？`,
       showCancelButton: true,
     })
-    // 获取该分组下所有批次并逐条删除
-    const detail = await getInventoryGroupedDetail({
+    await deleteInventoryGrouped({
       package_type: item.package_type,
       spec: item.spec,
       plating_zone: item.plating_zone,
       surface_treatment: item.surface_treatment,
       manufacturer: item.manufacturer,
     })
-    for (const b of detail.batches) {
-      await deleteInventory(b.id)
-    }
     showSuccessToast('已删除')
     loadData()
   } catch (e) {

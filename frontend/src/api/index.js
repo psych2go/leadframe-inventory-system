@@ -115,6 +115,11 @@ export async function deleteInventory(id) {
   return data
 }
 
+export async function deleteInventoryGrouped(fields) {
+  const { data } = await api.delete('/inventory-grouped', { data: fields })
+  return data
+}
+
 export async function getStockLogs(inventoryId = null, page = 1, size = 100) {
   const { data } = await api.get('/stock-logs', { params: { inventory_id: inventoryId, page, size } })
   return data

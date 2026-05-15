@@ -118,7 +118,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 inventory_id INTEGER REFERENCES inventory(id),
                 type TEXT NOT NULL,
-                quantity INTEGER NOT NULL,
+                quantity TEXT NOT NULL,
                 note TEXT,
                 operator TEXT,
                 created_at TIMESTAMP DEFAULT (datetime('now','+8 hours'))
@@ -132,6 +132,27 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_stock_log_inventory
             ON stock_log(inventory_id)
         """)
+
+        # 迁移：stock_log.quantity 从 INTEGER 改为 TEXT（匹配 inventory.quantity）
+        stock_schema = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='stock_log'").fetchone()
+        if stock_schema and "quantity INTEGER" in stock_schema["sql"]:
+            conn.execute("PRAGMA foreign_keys=OFF")
+            conn.executescript("""
+                DROP TABLE IF EXISTS stock_log_new;
+                CREATE TABLE stock_log_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    inventory_id INTEGER REFERENCES inventory(id),
+                    type TEXT NOT NULL,
+                    quantity TEXT NOT NULL,
+                    note TEXT,
+                    operator TEXT,
+                    created_at TIMESTAMP DEFAULT (datetime('now','+8 hours'))
+                );
+                INSERT INTO stock_log_new SELECT * FROM stock_log;
+                DROP TABLE stock_log;
+                ALTER TABLE stock_log_new RENAME TO stock_log;
+            """)
+            conn.execute("PRAGMA foreign_keys=ON")
 
         # 审计日志表
         conn.execute("""
@@ -264,7 +285,7 @@ def inventory_grouped_detail(package_type: str, spec: str, plating_zone: str,
 
 def inventory_update_grouped(old_fields: dict, new_fields: dict):
     """批量更新一个分组的公共基本信息字段"""
-    with get_connection() as conn:
+    with get_db() as conn:
         conn.execute(
             """UPDATE inventory SET package_type = ?, spec = ?, plating_zone = ?,
                surface_treatment = ?, manufacturer = ?,
@@ -278,7 +299,6 @@ def inventory_update_grouped(old_fields: dict, new_fields: dict):
              old_fields['plating_zone'], old_fields['surface_treatment'],
              old_fields['manufacturer']),
         )
-        conn.commit()
 
 
 def inventory_get(item_id: int):
@@ -310,6 +330,7 @@ def stock_in(package_type: str, spec: str, plating_zone: str, surface_treatment:
     own_conn = conn is None
     if own_conn:
         conn = get_connection()
+        conn.execute("BEGIN IMMEDIATE")
     try:
         existing = conn.execute(
             """SELECT id, quantity FROM inventory

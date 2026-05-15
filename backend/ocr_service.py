@@ -123,17 +123,6 @@ def _normalize_box(box):
     return None
 
 
-def _y_overlap_ratio(box_a, box_b):
-    """计算两个文本框的 Y 轴重合度（0~1），基于较矮框的高度归一化"""
-    a_ymin, a_ymax = box_a[1], box_a[3]
-    b_ymin, b_ymax = box_b[1], box_b[3]
-    overlap = max(0, min(a_ymax, b_ymax) - max(a_ymin, b_ymin))
-    min_height = min(a_ymax - a_ymin, b_ymax - b_ymin)
-    if min_height <= 0:
-        return 0
-    return overlap / min_height
-
-
 def _is_cjk(ch):
     """判断字符是否为 CJK 统一汉字"""
     cp = ord(ch)
@@ -479,24 +468,28 @@ async def recognize_image(image_bytes: bytes) -> dict:
         # 第二步：轮询任务状态
         poll_url = f"{API_URL}/{job_id}"
         max_attempts = 60  # 最多轮询 60 次，每次 3 秒 = 最多 3 分钟
+        done_data = None
         for _ in range(max_attempts):
             await asyncio.sleep(3)
             poll_resp = await _http_client.get(poll_url, headers=headers)
             if poll_resp.status_code != 200:
                 logger.warning("OCR poll error: %s", poll_resp.status_code)
                 continue
-            state = poll_resp.json()["data"]["state"]
+            poll_data = poll_resp.json()["data"]
+            state = poll_data["state"]
             if state == "done":
+                done_data = poll_data
                 break
             if state == "failed":
-                error_msg = poll_resp.json()["data"].get("errorMsg", "未知错误")
+                error_msg = poll_data.get("errorMsg", "未知错误")
                 logger.error("OCR job failed: %s", error_msg)
                 return {"error": f"OCR 识别失败: {error_msg}"}
-        else:
+
+        if not done_data:
             return {"error": "OCR 识别超时，请重试"}
 
         # 第三步：获取结果
-        jsonl_url = poll_resp.json()["data"]["resultUrl"]["jsonUrl"]
+        jsonl_url = done_data["resultUrl"]["jsonUrl"]
         jsonl_resp = await _http_client.get(jsonl_url)
         jsonl_resp.raise_for_status()
 

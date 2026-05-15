@@ -164,6 +164,37 @@ def update_inventory_grouped(body: dict):
     return {"detail": "更新成功"}
 
 
+@router.delete("/inventory-grouped")
+def delete_inventory_grouped(body: dict, request: Request):
+    """删除一个分组的所有批次（原子操作）"""
+    user_id, user_name = _audit_user(request)
+    required = ["package_type", "spec", "plating_zone", "surface_treatment", "manufacturer"]
+    for k in required:
+        if k not in body:
+            raise HTTPException(400, f"缺少字段: {k}")
+    with db.get_db() as conn:
+        rows = conn.execute(
+            """SELECT * FROM inventory
+               WHERE package_type = ? AND spec = ? AND plating_zone = ?
+               AND surface_treatment = ? AND manufacturer = ?""",
+            (body["package_type"], body["spec"], body["plating_zone"],
+             body["surface_treatment"], body["manufacturer"]),
+        ).fetchall()
+        if not rows:
+            raise HTTPException(404, "未找到匹配的库存记录")
+        for row in rows:
+            db.write_audit(
+                conn, user_id, user_name, "delete", "inventory", row["id"],
+                snapshot=dict(row),
+                ip_address=request.client.host if request.client else None,
+            )
+        ids = [row["id"] for row in rows]
+        placeholders = ",".join("?" * len(ids))
+        conn.execute(f"DELETE FROM stock_log WHERE inventory_id IN ({placeholders})", ids)
+        conn.execute(f"DELETE FROM inventory WHERE id IN ({placeholders})", ids)
+    return {"message": "删除成功", "deleted_count": len(rows)}
+
+
 @router.get("/inventory/export")
 def export_inventory(search: str = None,
                      package_type: str = None, spec: str = None,
@@ -213,7 +244,7 @@ def export_inventory(search: str = None,
             row["batch_no"],
             row["production_date"],
             row["expiry_date"],
-            row["quantity"],
+            db._num_to_qty(db._qty_to_num(row["quantity"])),
             row["note"] or "",
         ])
     for col in ws2.columns:
@@ -261,6 +292,7 @@ def do_stock_in(req: StockInRequest, request: Request):
     _validate_date(req.production_date, "生产日期")
     _validate_date(req.expiry_date, "有效日期")
     with db.get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         inv_id = db.stock_in(
             package_type=req.package_type.strip(),
             spec=req.spec.strip(),
@@ -332,7 +364,7 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
                 set_clause = ", ".join(f"{k} = ?" for k in updates)
                 values = list(updates.values()) + [item_id]
                 conn.execute(
-                    f"UPDATE inventory SET {set_clause}, updated_at = datetime('now','localtime') WHERE id = ?",
+                    f"UPDATE inventory SET {set_clause}, updated_at = datetime('now','+8 hours') WHERE id = ?",
                     values,
                 )
             except sqlite3.IntegrityError:
@@ -341,9 +373,10 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
                 target = conn.execute(
                     """SELECT id, quantity FROM inventory
                        WHERE package_type = ? AND spec = ? AND plating_zone = ?
-                       AND surface_treatment = ? AND batch_no = ? AND id != ?""",
+                       AND surface_treatment = ? AND manufacturer = ? AND batch_no = ? AND id != ?""",
                     (merged["package_type"], merged["spec"], merged["plating_zone"],
-                     merged["surface_treatment"], merged["batch_no"], item_id),
+                     merged["surface_treatment"], merged["manufacturer"],
+                     merged["batch_no"], item_id),
                 ).fetchone()
 
                 if target:
@@ -353,7 +386,7 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
                     conn.execute(
                         """UPDATE inventory SET quantity = ?, manufacturer = ?,
                            production_date = ?, expiry_date = ?,
-                           updated_at = datetime('now','localtime') WHERE id = ?""",
+                           updated_at = datetime('now','+8 hours') WHERE id = ?""",
                         (merged_qty, merged["manufacturer"], merged["production_date"],
                          merged["expiry_date"], target["id"]),
                     )
@@ -449,7 +482,7 @@ def delete_stock_log(log_id: int, request: Request):
             new_qty = db._num_to_qty(inv_qty + log_qty)
 
         conn.execute(
-            "UPDATE inventory SET quantity = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+            "UPDATE inventory SET quantity = ?, updated_at = datetime('now','+8 hours') WHERE id = ?",
             (new_qty, inv["id"]),
         )
         conn.execute("DELETE FROM stock_log WHERE id = ?", (log_id,))
