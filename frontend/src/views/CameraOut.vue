@@ -77,7 +77,7 @@
       <van-empty v-else-if="searchDone" description="未找到匹配批号的库存记录" class="compact-empty" />
 
       <div class="manual-out-bar" v-if="!matchedItems.length && searchDone">
-        <van-button block size="small" @click="$router.push({ path: '/stock-out', query: { search: [parsed.batch_no, parsed.spec].filter(Boolean).join(' ') } })">手动搜索出库</van-button>
+        <van-button block size="small" @click="$router.push({ path: '/stock-out', query: { search: parsed.batch_no || '' } })">手动搜索出库</van-button>
       </div>
 
       <div class="raw-text" v-if="ocrResult.raw_text">
