@@ -281,7 +281,8 @@ async function doExport() {
 }
 .search-bar :deep(.van-field__control) {
   height: 34px;
-  line-height: 34px;
+  /* 行高用 normal（贴近字号），不要等于 34px：行高过大时文字坐在基线上会沉到行盒底部，视觉偏下 */
+  line-height: normal;
   padding: 0;
 }
 .filter-bar { padding: 4px 12px 8px; }
