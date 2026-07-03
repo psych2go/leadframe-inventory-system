@@ -263,35 +263,25 @@ async function doExport() {
 .search-bar :deep(.van-search) {
   padding: 0;
   background: white;
-  border-radius: 8px;
 }
+/* content / field / control 三层同高，control 用 line-height==height 实现与设备无关的垂直居中 */
 .search-bar :deep(.van-search__content) {
+  height: 34px;
+  padding: 0 12px;
   border-radius: 8px;
-  padding-left: 12px;
   display: flex;
   align-items: center;
 }
 .search-bar :deep(.van-search__field) {
-  height: 34px;
-  display: flex;
-  align-items: center;
-  padding: 0 8px 0 0;
-}
-.search-bar :deep(.van-field__left-icon) {
-  display: flex;
-  align-items: center;
-  line-height: 1;
-}
-.search-bar :deep(.van-field__body) {
-  min-height: 0;
-  height: auto;
-  display: flex;
-  align-items: center;
   flex: 1;
+  height: 34px;
+  padding: 0;
+  display: flex;
+  align-items: center;
 }
 .search-bar :deep(.van-field__control) {
-  height: 24px;
-  line-height: 24px;
+  height: 34px;
+  line-height: 34px;
   padding: 0;
 }
 .filter-bar { padding: 4px 12px 8px; }
