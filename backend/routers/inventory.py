@@ -1,5 +1,4 @@
 import os
-import io
 import re
 import sqlite3
 from datetime import datetime
@@ -112,7 +111,7 @@ def get_inventory_alerts():
         items = []
         for r in rows:
             g = dict(r)
-            g["total_quantity"] = db._num_to_qty(g["total_quantity"])
+            g["total_quantity"] = db.num_to_qty(g["total_quantity"])
             items.append(g)
     return {"items": items, "threshold": ALERT_THRESHOLD}
 
@@ -143,7 +142,7 @@ def get_inventory_grouped_detail(package_type: str = Query(""),
     batches = db.inventory_grouped_detail(package_type, spec, plating_zone, surface_treatment, manufacturer)
     if not batches:
         raise HTTPException(404, "未找到匹配的库存记录")
-    total_qty = db._num_to_qty(sum(db._qty_to_num(b["quantity"]) for b in batches))
+    total_qty = db.num_to_qty(sum(db.qty_to_num(b["quantity"]) for b in batches))
     return {
         "package_type": package_type,
         "spec": spec,
@@ -160,7 +159,7 @@ def get_inventory_grouped_detail(package_type: str = Query(""),
 def update_inventory_grouped(body: dict):
     old = body.get("old", {})
     new = body.get("new", {})
-    required = ["package_type", "spec", "plating_zone", "surface_treatment", "manufacturer"]
+    required = list(db.COMPOSITE_KEY)
     for k in required:
         if k not in old:
             raise HTTPException(400, f"缺少原始字段: {k}")
@@ -173,27 +172,17 @@ def update_inventory_grouped(body: dict):
 @router.delete("/inventory-grouped")
 def delete_inventory_grouped(body: dict, request: Request):
     """删除一个分组的所有批次（原子操作）"""
-    user_id, user_name = _audit_user(request)
-    required = ["package_type", "spec", "plating_zone", "surface_treatment", "manufacturer"]
+    required = list(db.COMPOSITE_KEY)
     for k in required:
         if k not in body:
             raise HTTPException(400, f"缺少字段: {k}")
     with db.get_db() as conn:
-        rows = conn.execute(
-            """SELECT * FROM inventory
-               WHERE package_type = ? AND spec = ? AND plating_zone = ?
-               AND surface_treatment = ? AND manufacturer = ?""",
-            (body["package_type"], body["spec"], body["plating_zone"],
-             body["surface_treatment"], body["manufacturer"]),
-        ).fetchall()
+        where, params = db.group_key_match({k: body[k] for k in db.COMPOSITE_KEY})
+        rows = conn.execute(f"SELECT * FROM inventory WHERE {where}", params).fetchall()
         if not rows:
             raise HTTPException(404, "未找到匹配的库存记录")
         for row in rows:
-            db.write_audit(
-                conn, user_id, user_name, "delete", "inventory", row["id"],
-                snapshot=dict(row),
-                ip_address=request.client.host if request.client else None,
-            )
+            _audit(conn, request, "delete", "inventory", row["id"], snapshot=dict(row))
         ids = [row["id"] for row in rows]
         placeholders = ",".join("?" * len(ids))
         conn.execute(f"DELETE FROM stock_log WHERE inventory_id IN ({placeholders})", ids)
@@ -206,10 +195,10 @@ def export_inventory(search: str = None,
                      package_type: str = None, spec: str = None,
                      plating_zone: str = None, surface_treatment: str = None):
     """导出库存为 Excel 文件（两个 sheet：汇总 + 明细）"""
-    import openpyxl
+    from services.export import build_inventory_excel
 
     with db.get_db() as conn:
-        where, params = db._build_search_conditions(
+        where, params = db.build_search_conditions(
             search, package_type, spec, plating_zone, surface_treatment,
         )
         rows = conn.execute(
@@ -217,49 +206,7 @@ def export_inventory(search: str = None,
             params,
         ).fetchall()
 
-    wb = openpyxl.Workbook()
-
-    # Sheet 1: 汇总（按分组聚合，无批号/日期/备注）
-    ws1 = wb.active
-    ws1.title = "库存汇总"
-    ws1.append(["封装形式", "规格", "镀银区域", "表面粗化处理", "厂家", "总数量(K)", "批次数"])
-    groups = {}
-    for row in rows:
-        key = (row["package_type"], row["spec"], row["plating_zone"],
-               row["surface_treatment"], row["manufacturer"])
-        if key not in groups:
-            groups[key] = {"qty": 0, "count": 0}
-        groups[key]["qty"] += db._qty_to_num(row["quantity"])
-        groups[key]["count"] += 1
-    for (pt, sp, pz, st, mf), g in groups.items():
-        ws1.append([pt, sp, pz, st, mf, db._num_to_qty(g["qty"]), g["count"]])
-    for col in ws1.columns:
-        max_len = max(len(str(cell.value or "")) for cell in col)
-        ws1.column_dimensions[col[0].column_letter].width = min(max_len + 4, 30)
-
-    # Sheet 2: 明细（完整字段）
-    ws2 = wb.create_sheet("库存明细")
-    ws2.append(["封装形式", "规格", "镀银区域", "表面粗化处理", "厂家", "批号", "生产日期", "有效期", "数量", "备注"])
-    for row in rows:
-        ws2.append([
-            row["package_type"],
-            row["spec"],
-            row["plating_zone"],
-            row["surface_treatment"],
-            row["manufacturer"],
-            row["batch_no"],
-            row["production_date"],
-            row["expiry_date"],
-            db._num_to_qty(db._qty_to_num(row["quantity"])),
-            row["note"] or "",
-        ])
-    for col in ws2.columns:
-        max_len = max(len(str(cell.value or "")) for cell in col)
-        ws2.column_dimensions[col[0].column_letter].width = min(max_len + 4, 30)
-
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
+    buf = build_inventory_excel(rows)
 
     date_str = datetime.now().strftime("%Y%m%d")
     filename = f"inventory_{date_str}.xlsx"
@@ -287,9 +234,26 @@ def _audit_user(request: Request):
     )
 
 
+def _audit(conn, request: Request, action: str, table_name: str,
+           record_id: int, user=None, **kwargs):
+    """审计日志快捷封装：从请求提取用户与 IP，写入审计日志（随业务事务提交）。
+
+    消除各处理函数中重复的 user 提取与 ip_address 三元表达式。
+    user 为可选的预提取 (user_id, user_name) 元组——当处理函数已为 operator
+    提取过操作人时，传入以避免重复解码 JWT。
+    kwargs 透传给 database.write_audit（snapshot / changes / detail 等）。
+    """
+    user_id, user_name = _audit_user(request) if user is None else user
+    db.write_audit(
+        conn, user_id, user_name, action, table_name, record_id,
+        ip_address=request.client.host if request.client else None,
+        **kwargs,
+    )
+
+
 @router.post("/stock-in")
 def do_stock_in(req: StockInRequest, request: Request):
-    user_id, user_name = _audit_user(request)
+    user_id, user_name = _audit_user(request)  # user_name 同时作为入库操作人
     if not req.quantity:
         raise HTTPException(400, "入库数量不能为空")
     _validate_quantity(req.quantity)
@@ -314,17 +278,17 @@ def do_stock_in(req: StockInRequest, request: Request):
             operator=user_name,
             conn=conn,
         )
-        db.write_audit(
-            conn, user_id, user_name, "stock_in", "inventory", inv_id,
+        _audit(
+            conn, request, "stock_in", "inventory", inv_id,
+            user=(user_id, user_name),
             detail=f"入库 {req.quantity}K | {req.spec} | 批号:{req.batch_no}",
-            ip_address=request.client.host if request.client else None,
         )
     return {"id": inv_id, "message": "入库成功"}
 
 
 @router.post("/stock-out")
 def do_stock_out(req: StockOutRequest, request: Request):
-    user_id, user_name = _audit_user(request)
+    user_id, user_name = _audit_user(request)  # user_name 同时作为出库操作人
     if not req.quantity:
         raise HTTPException(400, "出库数量不能为空")
     _validate_quantity(req.quantity)
@@ -334,18 +298,17 @@ def do_stock_out(req: StockOutRequest, request: Request):
         inv_id, error = db.stock_out(req.inventory_id, req.quantity, req.note, user_name, conn=conn)
         if error:
             raise HTTPException(400, error)
-        db.write_audit(
-            conn, user_id, user_name, "stock_out", "inventory", inv_id,
+        _audit(
+            conn, request, "stock_out", "inventory", inv_id,
+            user=(user_id, user_name),
             snapshot=old_item,
             detail=f"出库 {req.quantity}K",
-            ip_address=request.client.host if request.client else None,
         )
     return {"id": inv_id, "message": "出库成功"}
 
 
 @router.put("/inventory/{item_id}")
 def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request):
-    user_id, user_name = _audit_user(request)
     item = db.inventory_get(item_id)
     if not item:
         raise HTTPException(404, "库存记录不存在")
@@ -375,68 +338,38 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
                 )
             except sqlite3.IntegrityError:
                 # 编辑后与已有记录冲突，自动合并：数量累加到已有记录，删除当前记录
-                merged = {**item, **updates}
-                target = conn.execute(
-                    """SELECT id, quantity FROM inventory
-                       WHERE package_type = ? AND spec = ? AND plating_zone = ?
-                       AND surface_treatment = ? AND manufacturer = ? AND batch_no = ? AND id != ?""",
-                    (merged["package_type"], merged["spec"], merged["plating_zone"],
-                     merged["surface_treatment"], merged["manufacturer"],
-                     merged["batch_no"], item_id),
-                ).fetchone()
-
-                if target:
-                    merged_qty = db._num_to_qty(
-                        db._qty_to_num(target["quantity"]) + db._qty_to_num(item["quantity"])
-                    )
-                    conn.execute(
-                        """UPDATE inventory SET quantity = ?, manufacturer = ?,
-                           production_date = ?, expiry_date = ?,
-                           updated_at = datetime('now','+8 hours') WHERE id = ?""",
-                        (merged_qty, merged["manufacturer"], merged["production_date"],
-                         merged["expiry_date"], target["id"]),
-                    )
-                    # 迁移 stock_log 到目标记录
-                    conn.execute(
-                        "UPDATE stock_log SET inventory_id = ? WHERE inventory_id = ?",
-                        (target["id"], item_id),
-                    )
-                    conn.execute("DELETE FROM inventory WHERE id = ?", (item_id,))
-                    db.write_audit(
-                        conn, user_id, user_name, "update", "inventory", target["id"],
+                result = db.merge_inventory_on_conflict(conn, item_id, item, {**item, **updates})
+                if result["merged"]:
+                    _audit(
+                        conn, request, "update", "inventory", result["target_id"],
                         snapshot=item,
-                        changes={"merged_from": item_id, "quantity_added": item["quantity"], "merged_quantity": merged_qty},
-                        detail=f"合并记录 #{item_id} → #{target['id']}，数量累加后: {merged_qty}K",
-                        ip_address=request.client.host if request.client else None,
+                        changes={"merged_from": item_id,
+                                 "quantity_added": result["quantity_added"],
+                                 "merged_quantity": result["merged_quantity"]},
+                        detail=f"合并记录 #{item_id} → #{result['target_id']}，数量累加后: {result['merged_quantity']}K",
                     )
-                    return {"message": "已自动合并到已有记录", "merged_into": target["id"]}
+                    return {"message": "已自动合并到已有记录", "merged_into": result["target_id"]}
                 else:
                     raise HTTPException(400, "该组合已存在，不能重复")
 
             # 审计：更新操作（只记录实际变更的字段）
             if changes:
-                db.write_audit(
-                    conn, user_id, user_name, "update", "inventory", item_id,
+                _audit(
+                    conn, request, "update", "inventory", item_id,
                     snapshot=item,
                     changes=changes,
-                    ip_address=request.client.host if request.client else None,
                 )
     return {"message": "更新成功"}
 
 
 @router.delete("/inventory/{item_id}")
 def delete_inventory(item_id: int, request: Request):
-    user_id, user_name = _audit_user(request)
     item = db.inventory_get(item_id)
     if not item:
         raise HTTPException(404, "库存记录不存在")
     # 审计：删除操作（记录完整快照）
     with db.get_db() as conn:
-        db.write_audit(
-            conn, user_id, user_name, "delete", "inventory", item_id,
-            snapshot=item,
-            ip_address=request.client.host if request.client else None,
-        )
+        _audit(conn, request, "delete", "inventory", item_id, snapshot=item)
         conn.execute("DELETE FROM stock_log WHERE inventory_id = ?", (item_id,))
         conn.execute("DELETE FROM inventory WHERE id = ?", (item_id,))
     return {"message": "删除成功"}
@@ -467,7 +400,6 @@ def get_stock_logs_grouped(
 
 @router.delete("/stock-logs/{log_id}")
 def delete_stock_log(log_id: int, request: Request):
-    user_id, user_name = _audit_user(request)
     with db.get_db() as conn:
         log = conn.execute("SELECT * FROM stock_log WHERE id = ?", (log_id,)).fetchone()
         if not log:
@@ -477,15 +409,15 @@ def delete_stock_log(log_id: int, request: Request):
         if not inv:
             raise HTTPException(400, "关联的库存记录已不存在，无法撤销")
 
-        log_qty = db._qty_to_num(log["quantity"])
-        inv_qty = db._qty_to_num(inv["quantity"])
+        log_qty = db.qty_to_num(log["quantity"])
+        inv_qty = db.qty_to_num(inv["quantity"])
 
         if log["type"] == "in":
             if inv_qty < log_qty:
                 raise HTTPException(400, f"撤销入库会导致库存为负（当前: {inv['quantity']}K，需扣减: {log['quantity']}K）")
-            new_qty = db._num_to_qty(inv_qty - log_qty)
+            new_qty = db.num_to_qty(inv_qty - log_qty)
         else:
-            new_qty = db._num_to_qty(inv_qty + log_qty)
+            new_qty = db.num_to_qty(inv_qty + log_qty)
 
         conn.execute(
             "UPDATE inventory SET quantity = ?, updated_at = datetime('now','+8 hours') WHERE id = ?",
@@ -494,11 +426,10 @@ def delete_stock_log(log_id: int, request: Request):
         conn.execute("DELETE FROM stock_log WHERE id = ?", (log_id,))
 
         action_desc = "撤销入库" if log["type"] == "in" else "撤销出库"
-        db.write_audit(
-            conn, user_id, user_name, "delete", "stock_log", log_id,
+        _audit(
+            conn, request, "delete", "stock_log", log_id,
             snapshot=dict(log),
             detail=f"{action_desc}：{log['quantity']}K",
-            ip_address=request.client.host if request.client else None,
         )
     return {"message": "删除成功"}
 

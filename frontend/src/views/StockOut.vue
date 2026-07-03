@@ -88,7 +88,7 @@ onMounted(async () => {
   if (route.params.id) {
     try {
       selectedBatch.value = await getInventory(route.params.id)
-    } catch (e) {}
+    } catch (e) { console.warn(e) }
     return
   }
   // 从拍照出库跳转时，带入搜索词并自动搜索
@@ -105,7 +105,7 @@ async function doSearch() {
     searchResults.value = data.items.map(g => ({ ...g, _batches: [] }))
     searched.value = true
     expandedGroup.value = null
-  } catch (e) {}
+  } catch (e) { console.warn(e) }
 }
 
 async function toggleGroup(group) {
@@ -124,7 +124,7 @@ async function toggleGroup(group) {
         manufacturer: group.manufacturer,
       })
       group._batches = detail.batches
-    } catch (e) {}
+    } catch (e) { console.warn(e) }
   }
 }
 

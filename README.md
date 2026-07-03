@@ -163,8 +163,9 @@ EOF
 
 ```bash
 cat > /opt/leadframe-inventory/backend/.env << 'EOF'
-PADDOLEOCR_API_URL=https://your-api-url/layout-parsing
-PADDOLEOCR_TOKEN=your-token
+PADDLEOCR_API_URL=https://your-api-url/layout-parsing
+PADDLEOCR_TOKEN=your-token
+PADDLEOCR_MODEL=PP-OCRv5
 EOF
 ```
 
@@ -279,8 +280,9 @@ LOGIN_PASSWORD=你的登录密码
 `backend/.env`（OCR 凭据）：
 
 ```env
-PADDOLEOCR_API_URL=https://your-api-url/layout-parsing
-PADDOLEOCR_TOKEN=your-token
+PADDLEOCR_API_URL=https://your-api-url/layout-parsing
+PADDLEOCR_TOKEN=your-token
+PADDLEOCR_MODEL=PP-OCRv5
 ```
 
 #### 3. 配置 SSL 证书

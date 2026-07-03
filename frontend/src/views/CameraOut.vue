@@ -213,7 +213,7 @@ async function findMatchByBatch() {
     if (items.length === 1) {
       selectedItem.value = items[0]
     }
-  } catch (e) {}
+  } catch (e) { console.warn(e) }
   searchDone.value = true
 }
 

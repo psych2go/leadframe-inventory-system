@@ -95,6 +95,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { showToast, showSuccessToast, showDialog } from 'vant'
 import { getInventoryGrouped, deleteInventoryGrouped, exportInventory, getFilterOptions } from '../api'
 import { isLowStock } from '../utils/qty'
+import { platingFilterOptions as platingOptions, surfaceFilterOptions as surfaceOptions } from '../composables/useInventoryEnums'
 
 const router = useRouter()
 const route = useRoute()
@@ -124,18 +125,6 @@ const filters = reactive({
 
 const pkgOptions = ref([{ text: '全部', value: '' }])
 const specOptions = ref([{ text: '全部', value: '' }])
-const platingOptions = [
-  { text: '全部', value: '' },
-  { text: '单环镀', value: '单环镀' },
-  { text: '双环镀', value: '双环镀' },
-  { text: '局部镀银', value: '局部镀银' },
-]
-const surfaceOptions = [
-  { text: '全部', value: '' },
-  { text: 'CRC', value: 'CRC' },
-  { text: 'SRC', value: 'SRC' },
-  { text: 'ERC', value: 'ERC' },
-]
 const mfrOptions = ref([{ text: '全部', value: '' }])
 
 const filterLabel = (v) => v || '全部'
@@ -146,7 +135,7 @@ async function loadFilterOptions() {
     pkgOptions.value = [{ text: '全部', value: '' }, ...opts.package_types.map(v => ({ text: v, value: v }))]
     specOptions.value = [{ text: '全部', value: '' }, ...opts.specs.map(v => ({ text: v, value: v }))]
     mfrOptions.value = [{ text: '全部', value: '' }, ...opts.manufacturers.map(v => ({ text: v, value: v }))]
-  } catch (e) {}
+  } catch (e) { console.warn(e) }
 }
 
 function makePickerHandler(filterKey, showRef) {

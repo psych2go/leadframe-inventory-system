@@ -55,15 +55,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { getInventory, updateInventory } from '../api'
+import { platingOptions, surfaceOptions } from '../composables/useInventoryEnums'
 
 const route = useRoute()
 const router = useRouter()
 const submitting = ref(false)
 const showPlatingPicker = ref(false)
 const showSurfacePicker = ref(false)
-
-const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }, { text: '局部镀银', value: '局部镀银' }, { text: '无', value: '' }]
-const surfaceOptions = [{ text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }, { text: '无', value: '' }]
 
 const form = reactive({
   package_type: '', spec: '', plating_zone: '', surface_treatment: '',

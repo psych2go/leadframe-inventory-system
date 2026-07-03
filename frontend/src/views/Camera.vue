@@ -118,6 +118,7 @@ import { ocrRecognize, stockIn } from '../api'
 import { getRawPhoto, isWebRTCSupported } from '../utils/wxsdk'
 import Viewfinder from '../components/Viewfinder.vue'
 import CropModal from '../components/CropModal.vue'
+import { platingOptions, surfaceOptions } from '../composables/useInventoryEnums'
 
 const router = useRouter()
 const loading = ref(false)
@@ -132,9 +133,6 @@ const showSurfacePicker = ref(false)
 const showViewfinder = ref(false)
 const showCrop = ref(false)
 const cropFile = ref(null)
-
-const platingOptions = [{ text: '单环镀', value: '单环镀' }, { text: '双环镀', value: '双环镀' }, { text: '局部镀银', value: '局部镀银' }, { text: '无', value: '' }]
-const surfaceOptions = [{ text: 'CRC', value: 'CRC' }, { text: 'SRC', value: 'SRC' }, { text: 'ERC', value: 'ERC' }, { text: '无', value: '' }]
 
 const form = reactive({
   package_type: '',

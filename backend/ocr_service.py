@@ -18,9 +18,19 @@ if _env_file.exists():
 
 logger = logging.getLogger(__name__)
 
-API_URL = os.environ.get("PADDOLEOCR_API_URL", "")
-TOKEN = os.environ.get("PADDOLEOCR_TOKEN", "")
-MODEL = os.environ.get("PADDOLEOCR_MODEL", "PP-OCRv5")
+
+def _ocr_env(key: str, default: str = "") -> str:
+    """读取 OCR 环境变量：优先规范名 PADDLEOCR_*，回退到历史拼写 PADDOLEOCR_*。
+
+    历史上变量名误拼为 PADDOLEOCR_*（多了一个 O），已部署的 .env 仍在使用。
+    这里做向后兼容：新部署用 PADDLEOCR_*，旧部署的 PADDOLEOCR_* 继续生效。
+    """
+    return os.environ.get(f"PADDLEOCR_{key}") or os.environ.get(f"PADDOLEOCR_{key}", default)
+
+
+API_URL = _ocr_env("API_URL")
+TOKEN = _ocr_env("TOKEN")
+MODEL = _ocr_env("MODEL", "PP-OCRv5")
 
 # 复用连接池，轮询场景需要较长超时
 _http_client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0))
@@ -432,7 +442,7 @@ def parse_ocr_markdown(markdown_text: str) -> dict:
 async def recognize_image(image_bytes: bytes) -> dict:
     """调用 PaddleOCR PP-OCRv5 异步 API 对图片执行 OCR 识别"""
     if not TOKEN:
-        return {"error": "未配置 PaddleOCR API TOKEN，请设置环境变量 PADDOLEOCR_TOKEN"}
+        return {"error": "未配置 PaddleOCR API TOKEN，请设置环境变量 PADDLEOCR_TOKEN（或兼容的 PADDOLEOCR_TOKEN）"}
 
     try:
         headers = {"Authorization": f"bearer {TOKEN}"}

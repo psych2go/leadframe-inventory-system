@@ -6,6 +6,13 @@ from contextlib import contextmanager
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
 
+# 复合分组键：以"封装形式+规格+镀银区域+表面处理+厂家"为分组的业务定义。
+# 集中定义一次，所有 GROUP BY / 精确匹配 WHERE 都从这里派生，避免 5 个字段散落各处。
+# 注意：inventory 表的"唯一约束"还包含 batch_no（库存记录的唯一键），这里只覆盖【分组】维度。
+COMPOSITE_KEY = ("package_type", "spec", "plating_zone", "surface_treatment", "manufacturer")
+# GROUP BY 列串（纯字符串，无参数），供聚合查询复用
+GROUP_BY_KEY = ", ".join(COMPOSITE_KEY)
+
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -184,7 +191,7 @@ def init_db():
         """)
 
 
-def _build_search_conditions(search: str = None,
+def build_search_conditions(search: str = None,
                               package_type: str = None,
                               spec: str = None,
                               plating_zone: str = None,
@@ -216,12 +223,41 @@ def _build_search_conditions(search: str = None,
     return where, params
 
 
+def group_key_match(key_values: dict, prefix: str = "",
+                    extra_clauses: list = None, extra_params: list = None):
+    """构造匹配复合分组键的精确 WHERE 片段。
+
+    从 COMPOSITE_KEY 派生，避免 5 个字段名散落各处。返回 (clause, params)：
+    - clause：形如 "package_type = ? AND spec = ? ... AND manufacturer = ?"，
+              可带前缀（如联表查询的 "i."）和追加的额外条件（batch_no / id != ? 等）。
+    - params：按 COMPOSITE_KEY 顺序绑定键值，再追加 extra_params。
+
+    示例：
+        clause, params = group_key_match(
+            {"package_type": pt, "spec": sp, "plating_zone": pz,
+             "surface_treatment": st, "manufacturer": mf},
+            extra_clauses=["batch_no = ?", "id != ?"],
+            extra_params=[batch_no, item_id],
+        )
+        conn.execute(f"SELECT ... WHERE {clause}", params)
+    """
+    parts = []
+    params = []
+    for f in COMPOSITE_KEY:
+        parts.append(f"{prefix}{f} = ?")
+        params.append(key_values[f])
+    for clause in (extra_clauses or []):
+        parts.append(clause)
+    params.extend(extra_params or [])
+    return " AND ".join(parts), params
+
+
 def inventory_list(search: str = None, page: int = 1, size: int = 20,
                     package_type: str = None, spec: str = None,
                     plating_zone: str = None, surface_treatment: str = None,
                     manufacturer: str = None):
     with get_db() as conn:
-        where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment, manufacturer)
+        where, params = build_search_conditions(search, package_type, spec, plating_zone, surface_treatment, manufacturer)
 
         rows = conn.execute(
             f"SELECT * FROM inventory WHERE 1=1{where} ORDER BY updated_at DESC LIMIT ? OFFSET ?",
@@ -243,7 +279,7 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
                            manufacturer: str = None,
                            alert_only: bool = False):
     with get_db() as conn:
-        where, params = _build_search_conditions(search, package_type, spec, plating_zone, surface_treatment, manufacturer)
+        where, params = build_search_conditions(search, package_type, spec, plating_zone, surface_treatment, manufacturer)
 
         having = " HAVING COALESCE(SUM(CAST(quantity AS REAL)), 0) < 2" if alert_only else ""
 
@@ -252,7 +288,7 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
                        COUNT(*) as batch_count,
                        COALESCE(SUM(CAST(quantity AS REAL)), 0) as total_quantity
                 FROM inventory WHERE 1=1{where}
-                GROUP BY package_type, spec, plating_zone, surface_treatment, manufacturer
+                GROUP BY {GROUP_BY_KEY}
                 {having}
                 ORDER BY MAX(updated_at) DESC
                 LIMIT ? OFFSET ?""",
@@ -262,7 +298,7 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
         total = conn.execute(
             f"""SELECT COUNT(*) as total FROM (
                    SELECT 1 FROM inventory WHERE 1=1{where}
-                   GROUP BY package_type, spec, plating_zone, surface_treatment, manufacturer
+                   GROUP BY {GROUP_BY_KEY}
                    {having}
                )""",
             params,
@@ -271,7 +307,7 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
         groups = []
         for r in rows:
             g = dict(r)
-            g["total_quantity"] = _num_to_qty(g["total_quantity"])
+            g["total_quantity"] = num_to_qty(g["total_quantity"])
             groups.append(g)
         return groups, total
 
@@ -279,31 +315,31 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
 def inventory_grouped_detail(package_type: str, spec: str, plating_zone: str,
                               surface_treatment: str, manufacturer: str):
     with get_db() as conn:
+        where, params = group_key_match({
+            "package_type": package_type, "spec": spec, "plating_zone": plating_zone,
+            "surface_treatment": surface_treatment, "manufacturer": manufacturer,
+        })
         rows = conn.execute(
-            """SELECT * FROM inventory
-               WHERE package_type = ? AND spec = ? AND plating_zone = ?
-               AND surface_treatment = ? AND manufacturer = ?
+            f"""SELECT * FROM inventory
+               WHERE {where}
                ORDER BY batch_no""",
-            (package_type, spec, plating_zone, surface_treatment, manufacturer),
+            params,
         ).fetchall()
         return [dict(r) for r in rows]
 
 
 def inventory_update_grouped(old_fields: dict, new_fields: dict):
-    """批量更新一个分组的公共基本信息字段"""
+    """批量更新一个分组的公共基本信息字段（同组的所有批次）"""
     with get_db() as conn:
+        # SET 子句与 WHERE 子句都从 COMPOSITE_KEY 派生，避免字段名散落
+        set_clause = ", ".join(f"{f} = ?" for f in COMPOSITE_KEY)
+        set_values = [new_fields.get(f, "") for f in COMPOSITE_KEY]
+        where, where_params = group_key_match(old_fields)
         conn.execute(
-            """UPDATE inventory SET package_type = ?, spec = ?, plating_zone = ?,
-               surface_treatment = ?, manufacturer = ?,
+            f"""UPDATE inventory SET {set_clause},
                updated_at = datetime('now','+8 hours')
-               WHERE package_type = ? AND spec = ? AND plating_zone = ?
-               AND surface_treatment = ? AND manufacturer = ?""",
-            (new_fields.get('package_type', ''), new_fields.get('spec', ''),
-             new_fields.get('plating_zone', ''), new_fields.get('surface_treatment', ''),
-             new_fields.get('manufacturer', ''),
-             old_fields['package_type'], old_fields['spec'],
-             old_fields['plating_zone'], old_fields['surface_treatment'],
-             old_fields['manufacturer']),
+               WHERE {where}""",
+            set_values + where_params,
         )
 
 
@@ -313,7 +349,7 @@ def inventory_get(item_id: int):
         return dict(row) if row else None
 
 
-def _qty_to_num(val) -> float:
+def qty_to_num(val) -> float:
     """将数量字符串转为数字（系统以 K 为单位存储，忽略 K/M 后缀）"""
     if isinstance(val, (int, float)):
         return float(val)
@@ -322,10 +358,63 @@ def _qty_to_num(val) -> float:
     return float(m.group(1)) if m else 0
 
 
-def _num_to_qty(val) -> str:
+def num_to_qty(val) -> str:
     """将数字转为 K 单位的数量字符串（纯数字，不再加 K 后缀）"""
     v = round(float(val), 3)
     return str(int(v)) if v == int(v) else f"{v:.3f}".rstrip("0").rstrip(".")
+
+
+def merge_inventory_on_conflict(conn, item_id: int, item: dict, merged_fields: dict) -> dict:
+    """编辑后与已有记录唯一键冲突时的自动合并。
+
+    把当前记录（item_id）的数量累加到目标记录、迁移 stock_log、删除当前记录。
+    必须在调用方事务中执行（conn 由调用方提供并已持有 BEGIN IMMEDIATE）。
+
+    参数：
+      item_id: 当前被编辑的记录 id
+      item: 当前记录的原始快照（dict，含 quantity 等）
+      merged_fields: 合并后的字段集合（{**item, **updates}），用于定位目标记录与回填
+
+    返回：
+      命中目标 → {"merged": True, "target_id": int,
+                  "merged_quantity": str, "quantity_added": str}
+      未命中   → {"merged": False}（调用方据此抛"该组合已存在"错误）
+    """
+    key = {f: merged_fields[f] for f in COMPOSITE_KEY}
+    batch_no = merged_fields.get("batch_no", "")
+    where, params = group_key_match(
+        key, extra_clauses=["batch_no = ?", "id != ?"],
+        extra_params=[batch_no, item_id],
+    )
+    target = conn.execute(
+        f"SELECT id, quantity FROM inventory WHERE {where}", params,
+    ).fetchone()
+    if not target:
+        return {"merged": False}
+
+    merged_quantity = num_to_qty(
+        qty_to_num(target["quantity"]) + qty_to_num(item["quantity"])
+    )
+    # 注意：保持原有字段更新范围（quantity + manufacturer + production_date + expiry_date）
+    conn.execute(
+        """UPDATE inventory SET quantity = ?, manufacturer = ?,
+           production_date = ?, expiry_date = ?,
+           updated_at = datetime('now','+8 hours') WHERE id = ?""",
+        (merged_quantity, merged_fields["manufacturer"], merged_fields["production_date"],
+         merged_fields["expiry_date"], target["id"]),
+    )
+    # 迁移 stock_log 到目标记录
+    conn.execute(
+        "UPDATE stock_log SET inventory_id = ? WHERE inventory_id = ?",
+        (target["id"], item_id),
+    )
+    conn.execute("DELETE FROM inventory WHERE id = ?", (item_id,))
+    return {
+        "merged": True,
+        "target_id": target["id"],
+        "merged_quantity": merged_quantity,
+        "quantity_added": item["quantity"],
+    }
 
 
 def stock_in(package_type: str, spec: str, plating_zone: str, surface_treatment: str,
@@ -338,16 +427,22 @@ def stock_in(package_type: str, spec: str, plating_zone: str, surface_treatment:
         conn = get_connection()
         conn.execute("BEGIN IMMEDIATE")
     try:
+        key = {
+            "package_type": package_type, "spec": spec, "plating_zone": plating_zone,
+            "surface_treatment": surface_treatment, "manufacturer": manufacturer,
+        }
+        where, params = group_key_match(
+            key, extra_clauses=["batch_no = ?"], extra_params=[batch_no],
+        )
         existing = conn.execute(
-            """SELECT id, quantity FROM inventory
-               WHERE package_type = ? AND spec = ? AND plating_zone = ?
-               AND surface_treatment = ? AND manufacturer = ? AND batch_no = ?""",
-            (package_type, spec, plating_zone, surface_treatment, manufacturer, batch_no)
+            f"""SELECT id, quantity FROM inventory
+               WHERE {where}""",
+            params,
         ).fetchone()
 
         if existing:
-            new_num = _qty_to_num(existing["quantity"]) + _qty_to_num(quantity)
-            new_qty = _num_to_qty(new_num)
+            new_num = qty_to_num(existing["quantity"]) + qty_to_num(quantity)
+            new_qty = num_to_qty(new_num)
             conn.execute(
                 """UPDATE inventory SET quantity = ?, plating_zone = ?, surface_treatment = ?,
                    manufacturer = ?, production_date = ?, expiry_date = ?,
@@ -388,12 +483,12 @@ def stock_out(inventory_id: int, quantity: str, note: str = None, operator: str 
         item = conn.execute("SELECT quantity FROM inventory WHERE id = ?", (inventory_id,)).fetchone()
         if not item:
             return None, "库存记录不存在"
-        current_num = _qty_to_num(item["quantity"])
-        out_num = _qty_to_num(quantity)
+        current_num = qty_to_num(item["quantity"])
+        out_num = qty_to_num(quantity)
         if current_num < out_num:
             return None, f"库存不足（当前: {item['quantity']}，申请出库: {quantity}）"
 
-        new_qty = _num_to_qty(current_num - out_num)
+        new_qty = num_to_qty(current_num - out_num)
         conn.execute(
             "UPDATE inventory SET quantity = ?, updated_at = datetime('now','+8 hours') WHERE id = ?",
             (new_qty, inventory_id)

@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-引线框架（Leadframe）库存管理系统。移动端 H5 应用，嵌入企业微信使用。核心流程：拍照 → PaddleOCR-VL-1.5 云端 API 识别标签 → 结构化数据入库。以封装形式+规格+镀银区域+表面处理+厂家+批号为复合唯一标识，相同则数量累加。
+引线框架（Leadframe）库存管理系统。移动端 H5 应用，嵌入企业微信使用。核心流程：拍照 → PaddleOCR PP-OCRv5 云端 API 识别标签 → 结构化数据入库。以封装形式+规格+镀银区域+表面处理+厂家+批号为复合唯一标识，相同则数量累加。
 
 ## 技术栈
 
@@ -27,12 +27,12 @@
 |------|------|
 | `backend/main.py` | FastAPI 入口，lifespan 建表，CORS，路由挂载（prefix=/api） |
 | `backend/database.py` | SQLite 连接管理，inventory/stock_log/audit_log 三张表的建表/CRUD/审计 |
-| `backend/ocr_service.py` | PaddleOCR-VL-1.5 云端 API 调用，base64 编码图片，解析返回的 Markdown 文本为结构化字段 |
+| `backend/ocr_service.py` | PaddleOCR PP-OCRv5 云端 API 调用（multipart 上传图片→提交任务→轮询→解析 JSONL），从文本中提取结构化字段 |
 | `backend/routers/ocr.py` | POST /api/ocr，接收图片上传（限制 20MB），保存文件后调用 OCR |
 | `backend/routers/inventory.py` | 库存 CRUD、分组查询、入库、出库、记录查询与撤销、审计日志查询、上传图片静态服务、Excel 导出 |
 | `backend/auth_service.py` | JWT 签发/验证，企微 API 调用（access_token + jsapi_ticket + 用户身份），缓存 |
 | `backend/routers/auth.py` | 企微 OAuth + 密码登录：授权链接、code→JWT 回调、密码验证登录、JS-SDK 签名配置 |
-| `frontend/src/api/index.js` | Axios 实例（baseURL = BASE_URL + 'api'，即 `/inventory/api`），所有后端接口封装（26 个函数） |
+| `frontend/src/api/index.js` | Axios 实例（baseURL = BASE_URL + 'api'，即 `/inventory/api`），所有后端接口封装（22 个函数） |
 | `frontend/src/utils/wxsdk.js` | 企微 JS-SDK 封装：初始化 wx.config、chooseImage（支持拍照+相册）、getLocalImgData，非企微降级，上传前压缩图片 |
 | `frontend/src/utils/qty.js` | 数量单位工具函数：parseQtyToK（解析 K 单位数值）、isLowStock（低库存判断） |
 | `frontend/src/components/Viewfinder.vue` | 相机取景器组件，支持 WebRTC 实时预览拍照 |
@@ -80,7 +80,7 @@ SQLite，文件 `backend/inventory.db`。
 
 ## OCR 流程
 
-1. 前端拍照/选图（企微内用 JS-SDK `wx.chooseImage`，非企微用 HTML input 或 Viewfinder 组件）→ 自动压缩图片（最大宽度 1600px，JPEG 质量 80%）→ POST /api/ocr（multipart/form-data，限制 20MB）
+1. 前端拍照/选图（企微内用 JS-SDK `wx.chooseImage`，非企微用 HTML input 或 Viewfinder 组件）→ 自动压缩图片（由 Viewfinder/CropModal 组件完成：最大宽度 1000px，JPEG 质量 85%）→ POST /api/ocr（multipart/form-data，限制 20MB）
 2. 后端保存图片到 uploads/ → 调用 PaddleOCR PP-OCRv5 异步 API（提交任务 → 轮询 → 取 JSONL 结果）
 3. API 返回 JSONL 格式的 OCR 文本结果
 4. `parse_ocr_markdown()` 用正则从文本中提取字段（厂家、规格、批号、数量、日期等）
@@ -89,7 +89,7 @@ SQLite，文件 `backend/inventory.db`。
 7. 日期格式统一为 YYYY-MM-DD（`_normalize_date`：支持中英文各种格式）
 8. 返回 raw_text + parsed 给前端，用户可在 Camera.vue 中手动修正后确认入库
 
-OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_API_URL`、`PADDOLEOCR_TOKEN`、`PADDOLEOCR_MODEL`。
+OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDLEOCR_API_URL`、`PADDLEOCR_TOKEN`、`PADDLEOCR_MODEL`（历史误拼名 `PADDOLEOCR_*` 仍向后兼容——代码优先读取规范名 `PADDLEOCR_*`，找不到再回退到 `PADDOLEOCR_*`）。
 
 ## 企微集成
 
@@ -123,7 +123,7 @@ OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDOLEOCR_AP
 1. 页面加载时 `wxsdk.js` 自动获取 JS-SDK 签名（`GET /api/auth/wecom/jsapi-config?url=当前页面`）
 2. 调用 `wx.config` 初始化（使用 jsapi_ticket，与 access_token 独立）
 3. 用户点击拍照/选图 → `wx.chooseImage`（支持拍照和相册）→ `wx.getLocalImgData` → 转 File 对象
-4. 图片经过前端压缩（Canvas 缩放至最大 1600px 宽度，JPEG 80% 质量）
+4. 图片经过前端压缩（Viewfinder/CropModal 组件：Canvas 缩放至最大 1000px 宽度，JPEG 85% 质量）
 5. 压缩后的 File 走 OCR 流程
 
 非企微环境自动降级为 HTML `<input type="file" accept="image/*">`（支持拍照和相册选择），同样经过压缩。
@@ -194,8 +194,9 @@ LOGIN_PASSWORD=你的登录密码
 `backend/.env`（OCR 凭据，已 gitignore）：
 
 ```env
-PADDOLEOCR_API_URL=https://your-api-url/layout-parsing
-PADDOLEOCR_TOKEN=your-token
+PADDLEOCR_API_URL=https://your-api-url/layout-parsing
+PADDLEOCR_TOKEN=your-token
+PADDLEOCR_MODEL=PP-OCRv5
 ```
 
 **4. 构建前端**
@@ -305,6 +306,7 @@ npm run dev
 | GET | /api/inventory-grouped | 分组库存列表（按封装形式/规格/镀银区域/表面处理/厂家聚合，?alert=true 只返回预警） |
 | GET | /api/inventory-grouped/detail | 分组库存详情（含批次列表） |
 | PUT | /api/inventory-grouped/update | 批量更新同组库存的共有字段 |
+| DELETE | /api/inventory-grouped | 删除一个分组的所有批次（原子操作，含审计） |
 | GET | /api/inventory/export | 导出 Excel（两个 sheet：库存汇总 + 库存明细） |
 | GET | /api/inventory/:id | 单条库存 |
 | PUT | /api/inventory/:id | 更新库存（含审计，冲突时自动合并） |
@@ -312,6 +314,7 @@ npm run dev
 | POST | /api/stock-in | 入库（相同组合累加数量） |
 | POST | /api/stock-out | 出库（扣减数量，BEGIN IMMEDIATE 防竞态） |
 | GET | /api/stock-logs | 出入库记录（?inventory_id=&page=&size=） |
+| GET | /api/stock-logs/grouped | 按复合键筛选的出入库记录（?package_type=&spec=&plating_zone=&surface_treatment=&manufacturer=&page=&size=） |
 | DELETE | /api/stock-logs/:id | 撤销出入库记录（反向调整库存数量） |
 | GET | /api/audit-logs | 操作审计日志（?action=&page=&size=） |
 | GET | /api/uploads/:filename | 上传图片静态服务（防路径遍历） |
