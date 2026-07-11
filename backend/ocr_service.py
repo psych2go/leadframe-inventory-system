@@ -166,52 +166,14 @@ def _smart_join(texts):
 
 
 def _merge_blocks_by_coords(text_blocks):
-    """基于 Y 轴重合度分行，每行按 X 坐标排序后拼接文本
+    """基于 Y 轴分行，每行按 X 坐标排序后拼接文本。
 
-    使用行基准线（Y 中心均值）判断新块归属，避免 any() 链式塌陷：
-    倾斜标签下 A-B 重合、B-C 重合但 A-C 不重合，any() 会把三者串成一行。
-    改为只与基准线比较，确保所有同行块都与行的整体位置对齐。
+    内部复用 `_cluster_rows` 的自适应间隙聚类，统一行重建逻辑；用「排序后间隙」
+    而非两两 overlap，规避倾斜标签下 A-B 重合、B-C 重合但 A-C 不重合的链式塌陷。
+    签名与输出（每行拼接文本的列表）保持不变。
     """
-    if not text_blocks:
-        return []
-
-    sorted_blocks = sorted(
-        text_blocks,
-        key=lambda b: (b["box"][1] + b["box"][3]) / 2,
-    )
-
-    lines = []
-    current_line = [sorted_blocks[0]]
-
-    def _line_baseline():
-        """当前行所有块的 Y 中心均值"""
-        return sum((b["box"][1] + b["box"][3]) / 2 for b in current_line) / len(current_line)
-
-    def _line_bbox():
-        """当前行的合并 Y 范围 [y_min, y_max]"""
-        ymin = min(b["box"][1] for b in current_line)
-        ymax = max(b["box"][3] for b in current_line)
-        return [ymin, ymax]
-
-    for block in sorted_blocks[1:]:
-        bbox = _line_bbox()
-        overlap = max(0, min(bbox[1], block["box"][3]) - max(bbox[0], block["box"][1]))
-        line_height = bbox[1] - bbox[0]
-        block_height = block["box"][3] - block["box"][1]
-        min_h = min(line_height, block_height)
-        ratio = overlap / min_h if min_h > 0 else 0
-        if ratio > 0.4:
-            current_line.append(block)
-        else:
-            current_line.sort(key=lambda b: b["box"][0])
-            lines.append(_smart_join([b["text"] for b in current_line]))
-            current_line = [block]
-
-    if current_line:
-        current_line.sort(key=lambda b: b["box"][0])
-        lines.append(_smart_join([b["text"] for b in current_line]))
-
-    return lines
+    rows = _cluster_rows(text_blocks)
+    return [_smart_join([b["text"] for b in row]) for row in rows]
 
 
 def _merge_by_colon(ocr_texts):
@@ -623,6 +585,185 @@ def _extract_with_columns(text_blocks):
     return result, confidences
 
 
+# ===================== 网格重建 + 网格感知提取（主路径）=====================
+
+def _median(values):
+    """返回列表中位数（空列表返回 0）。"""
+    if not values:
+        return 0
+    s = sorted(values)
+    n = len(s)
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+
+
+def _cluster_rows(blocks):
+    """按 Y 中心用自适应间隙聚类成行；行内按 X 坐标排序。
+
+    用「排序后间隙」（相邻块 Y 中心间距 > 0.6 × 中位块高 则开新行）而非两两 overlap，
+    天然规避倾斜标签下「A-B 重合、B-C 重合但 A-C 不重合」的链式塌陷。
+    行内基准 = 当前行所有块 Y 中心均值（仅用于容差判断）。
+    无坐标的块被忽略（调用方应只传入带 box 的块）。
+    """
+    with_box = [b for b in blocks if b.get("box") is not None]
+    if not with_box:
+        return []
+
+    median_h = _median([b["box"][3] - b["box"][1] for b in with_box]) or 1
+    tol = 0.6 * median_h
+
+    ordered = sorted(with_box, key=lambda b: (b["box"][1] + b["box"][3]) / 2)
+    rows = []
+    cur = [ordered[0]]
+    cur_base = (ordered[0]["box"][1] + ordered[0]["box"][3]) / 2
+
+    for b in ordered[1:]:
+        cy = (b["box"][1] + b["box"][3]) / 2
+        if abs(cy - cur_base) <= tol:
+            cur.append(b)
+            cur_base = sum((x["box"][1] + x["box"][3]) / 2 for x in cur) / len(cur)
+        else:
+            cur.sort(key=lambda x: x["box"][0])
+            rows.append(cur)
+            cur = [b]
+            cur_base = cy
+    if cur:
+        cur.sort(key=lambda x: x["box"][0])
+        rows.append(cur)
+    return rows
+
+
+def _cluster_columns(rows):
+    """从所有块的 X 范围用区间合并聚类成列，支持任意列数（不再硬编码 2 栏）。
+
+    返回 list[[x_min, x_max]] 列范围（按 X 升序）。块稀疏无明确间隙时退化为单列。
+    """
+    spans = [b["box"] for row in rows for b in row if b.get("box") is not None]
+    if not spans:
+        return []
+    median_w = _median([s[2] - s[0] for s in spans]) or 1
+    gap_thresh = 0.3 * median_w
+
+    ordered = sorted(spans, key=lambda s: s[0])
+    bands = [[ordered[0][0], ordered[0][2]]]
+    for s in ordered[1:]:
+        x0, x2 = s[0], s[2]
+        if x0 - bands[-1][1] > gap_thresh:
+            bands.append([x0, x2])
+        else:
+            bands[-1][1] = max(bands[-1][1], x2)
+            bands[-1][0] = min(bands[-1][0], x0)
+    return bands
+
+
+def _col_index(x_center, bands):
+    """X 中心所属列索引：落入某 band 取该列，否则取最近列。"""
+    if not bands:
+        return 0
+    for i, (lo, hi) in enumerate(bands):
+        if lo <= x_center <= hi:
+            return i
+    return min(range(len(bands)),
+               key=lambda i: abs(x_center - (bands[i][0] + bands[i][1]) / 2))
+
+
+def _reconstruct_grid(blocks):
+    """重建二维网格：给每个块打 _row/_col 索引，返回 (rows, columns)。"""
+    rows = _cluster_rows(blocks)
+    columns = _cluster_columns(rows)
+    for ri, row in enumerate(rows):
+        for b in row:
+            cx = (b["box"][0] + b["box"][2]) / 2
+            b["_row"] = ri
+            b["_col"] = _col_index(cx, columns)
+    return rows, columns
+
+
+def _is_any_label(block):
+    """判断块是否匹配任一字段的标签模式（横向取值时遇到下一个标签即停）。"""
+    for field in _FIELD_PATTERNS:
+        kw, _ = _match_label_block(block, field)
+        if kw:
+            return True
+    return False
+
+
+def _grid_value_for_label(block, ri, ci, row, rows, field, kw):
+    """为命中的标签块取值，优先级：(inline) > (同行右侧非标签块拼接) > (下一行同列)。
+
+    返回 (value, confidence)。inline 与单一同行值/单一同列值为 1.0；
+    多块横向拼接为 0.9；多块同列为 0.7（有歧义）。
+    """
+    # 1) 行内 inline：同一块内标签之后已含值（如 "Q'ty: 46.368K"）。
+    #    仅当 _strip_label_prefix 确实剥离出标签之外的内容时才算，避免把
+    #    「纯标签块」（如 "SUPPLIER"，无冒号无值）本身误当成值。
+    raw_stripped = _strip_label_prefix(block["text"], kw)
+    if raw_stripped and raw_stripped != block["text"].strip():
+        inline = _truncate_at_next_label(raw_stripped, field)
+        if inline:
+            return inline, 1.0
+
+    # 2) 横向：同行右侧、到下一个标签前的所有非标签块拼接（解决多块值截断）
+    parts = []
+    for cb in row[ci + 1:]:
+        if _is_any_label(cb):
+            break
+        parts.append(cb["text"])
+    if parts:
+        val = _truncate_at_next_label(_smart_join(parts), field)
+        if val:
+            return val, (1.0 if len(parts) == 1 else 0.9)
+
+    # 3) 纵向：下一行同列的块（解决「标签在上、值在下」表格式排版）
+    col = block.get("_col")
+    if col is not None and ri + 1 < len(rows):
+        below = [b for b in rows[ri + 1] if b.get("_col") == col]
+        if below:
+            val = _truncate_at_next_label(below[0]["text"], field)
+            if val:
+                return val, (1.0 if len(below) == 1 else 0.7)
+    return "", 0.0
+
+
+def _extract_field_from_grid(rows, columns, field):
+    """在网格中提取单个字段。返回 (raw_value, confidence) 或 ("", 0)。"""
+    best_value, best_conf = "", 0.0
+    for ri, row in enumerate(rows):
+        for ci, block in enumerate(row):
+            kw, _ = _match_label_block(block, field)
+            if not kw:
+                continue
+            val, conf = _grid_value_for_label(block, ri, ci, row, rows, field, kw)
+            if val and conf > best_conf:
+                best_value, best_conf = val, conf
+    return best_value, best_conf
+
+
+def _extract_all_by_grid(blocks):
+    """网格主入口：重建网格后逐字段提取。返回 (result, confidences)。
+
+    无坐标块时返回空 dict，交由 spatial/regex 兜底。
+    """
+    result, confidences = {}, {}
+    if not blocks or not any(b.get("box") is not None for b in blocks):
+        return result, confidences
+    rows, columns = _reconstruct_grid(blocks)
+    for field in _FIELD_PATTERNS:
+        val, c = _extract_field_from_grid(rows, columns, field)
+        result[field] = val
+        confidences[field] = c
+    return result, confidences
+
+
+def _filter_blocks_by_score(blocks, threshold=0.3):
+    """丢弃识别置信度过低的块（仅在块带 score 字段时过滤），避免垃圾识别污染排版。
+
+    无 score 字段（旧响应/降级）时保留全部块。
+    """
+    if not blocks or not any(b.get("score") is not None for b in blocks):
+        return list(blocks)
+    return [b for b in blocks if (b.get("score") or 0) >= threshold]
+
+
 # ===================== 表格结构识别（方案 C）=====================
 
 def _extract_table_cells(jsonl_text: str):
@@ -739,7 +880,14 @@ def parse_ocr_markdown(markdown_text: str, text_blocks=None, jsonl_text: str = N
 
     table_text = "\n".join(table_lines) if table_lines else ""
 
-    # ===== 方案 A/B：空间感知提取 =====
+    # ===== 网格重建提取（主路径）=====
+    grid_result, grid_conf = {}, {}
+    if text_blocks:
+        grid_blocks = _filter_blocks_by_score(text_blocks)
+        grid_result, grid_conf = _extract_all_by_grid(grid_blocks)
+        logger.info("Grid extraction confidence: %s", grid_conf)
+
+    # ===== 方案 A/B：空间感知提取（fallback）=====
     spatial_result = {}
     spatial_conf = {}
     if text_blocks:
@@ -749,8 +897,7 @@ def parse_ocr_markdown(markdown_text: str, text_blocks=None, jsonl_text: str = N
     # ===== 原有正则兜底 =====
     regex_result = _extract_by_regex(clean_text)
 
-    # ===== 合并策略 =====
-    # 优先级：表格 > 空间（置信度>0.5）> 正则
+    # ===== 合并策略：表格 > 网格(置信度≥0.7) > 空间(A,>0.5) > 正则 =====
     for field in result:
         val = ""
         src = "regex"
@@ -759,7 +906,10 @@ def parse_ocr_markdown(markdown_text: str, text_blocks=None, jsonl_text: str = N
             tval = _extract_single_field_by_regex(table_text, field)
             if tval:
                 val, src = tval, "table"
-        # 空间提取
+        # 网格提取
+        if not val and grid_conf.get(field, 0) >= 0.7 and grid_result.get(field):
+            val, src = grid_result[field], "grid"
+        # 空间提取 fallback
         if not val and spatial_conf.get(field, 0) > 0.5 and spatial_result.get(field):
             val, src = spatial_result[field], "spatial"
         # 正则兜底
@@ -769,6 +919,15 @@ def parse_ocr_markdown(markdown_text: str, text_blocks=None, jsonl_text: str = N
 
         result[field] = val
         logger.debug("Field %s from %s: %s", field, src, val)
+
+    # 数量/日期统一归一化：无论来自哪个路径，输出规范格式（K 纯数字 / YYYY-MM-DD）。
+    # 对已归一化的正则结果幂等，对原始的网格/空间结果做收口。
+    if result.get("quantity"):
+        result["quantity"] = _normalize_qty(result["quantity"])
+    if result.get("production_date"):
+        result["production_date"] = _normalize_date(result["production_date"])
+    if result.get("expiry_date"):
+        result["expiry_date"] = _normalize_date(result["expiry_date"])
 
     return result
 
@@ -957,6 +1116,7 @@ async def recognize_image(image_bytes: bytes) -> dict:
                 pruned = res.get("prunedResult", {})
                 rec_texts = pruned.get("rec_texts", [])
                 rec_boxes = pruned.get("rec_boxes", [])
+                rec_scores = pruned.get("rec_scores", [])
                 for idx, text in enumerate(rec_texts):
                     text = text.strip()
                     if not text:
@@ -964,7 +1124,8 @@ async def recognize_image(image_bytes: bytes) -> dict:
                     box = None
                     if rec_boxes and idx < len(rec_boxes):
                         box = _normalize_box(rec_boxes[idx])
-                    text_blocks.append({"text": text, "box": box})
+                    score = rec_scores[idx] if rec_scores and idx < len(rec_scores) else None
+                    text_blocks.append({"text": text, "box": box, "score": score})
 
         # 有坐标时用 Y 轴分行合并，否则退化为冒号拼接
         coord_blocks = [b for b in text_blocks if b["box"] is not None]
