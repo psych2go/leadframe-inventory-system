@@ -264,7 +264,9 @@ async function doExport() {
   padding: 0;
   background: white;
 }
-/* content / field / control 三层同高，control 用 line-height==height 实现与设备无关的垂直居中 */
+/* 搜索框 placeholder 垂直居中：
+   content/field/body 三层固定 34px + flex align-items:center，
+   input 本身高度自适应由父容器撑开居中，并清除移动端 input 默认内边距 */
 .search-bar :deep(.van-search__content) {
   height: 34px;
   padding: 0 12px;
@@ -274,16 +276,38 @@ async function doExport() {
 }
 .search-bar :deep(.van-search__field) {
   flex: 1;
-  height: 34px;
+  min-height: 0;
+  height: 100%;
   padding: 0;
   display: flex;
   align-items: center;
 }
+.search-bar :deep(.van-field__body) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.search-bar :deep(.van-field__left-icon) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-right: 4px;
+}
 .search-bar :deep(.van-field__control) {
-  height: 34px;
-  /* 行高用 normal（贴近字号），不要等于 34px：行高过大时文字坐在基线上会沉到行盒底部，视觉偏下 */
+  flex: 1;
+  min-height: 0;
+  height: auto;
   line-height: normal;
   padding: 0;
+  border: none;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  font-size: 14px;
+  vertical-align: middle;
 }
 .filter-bar { padding: 4px 12px 8px; }
 .filter-row { display: flex; gap: 8px; flex-wrap: wrap; }
