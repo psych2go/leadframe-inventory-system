@@ -90,7 +90,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onActivated } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showSuccessToast, showDialog } from 'vant'
 import { getInventoryGrouped, deleteInventoryGrouped, exportInventory, getFilterOptions } from '../api'
@@ -101,6 +101,11 @@ const router = useRouter()
 const route = useRoute()
 const isAlertMode = computed(() => !!route.query.alert)
 watch(() => route.query.alert, () => loadData())
+
+// 从其他页面返回时刷新数据（<keep-alive> 缓存激活）
+onActivated(() => {
+  loadData()
+})
 const searchText = ref('')
 loadFilterOptions()
 const items = ref([])
