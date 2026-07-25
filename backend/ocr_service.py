@@ -4,6 +4,7 @@ import json
 import logging
 import asyncio
 import math
+import copy
 from pathlib import Path
 from collections import defaultdict
 
@@ -352,10 +353,12 @@ def _detect_columns(text_blocks, n_clusters=2):
     使用一维 K-Means（X 中心）把块分为左右两簇，若两簇中心距离 > 阈值则认为是两栏。
     返回列边界列表（x 范围），或 None 表示未检测到明显分栏。
     """
-    if not text_blocks or len(text_blocks) < 4:
+    # 过滤掉无坐标块，避免 _box_center 传入 None 而崩溃
+    blocks_with_box = [b for b in text_blocks if b.get("box") is not None]
+    if not blocks_with_box or len(blocks_with_box) < 4:
         return None
 
-    centers = [_box_center(b["box"])[0] for b in text_blocks]
+    centers = [_box_center(b["box"])[0] for b in blocks_with_box]
     w = max(centers) - min(centers) if max(centers) > min(centers) else 1
     if w < 30:
         return None
@@ -397,8 +400,10 @@ def _match_label_block(block, field):
             if kw in text:
                 return kw, 1.0
         else:
-            # 英文/数字：按单词边界，同时支持后接冒号/空格/结束
-            if re.search(rf"(?<!\w){escaped}(?!\w)|(?<!\w){escaped}\s*[:：]|(?<!\w){escaped}\s*$", text, re.IGNORECASE):
+            # 英文/数字：使用 ASCII 字母数字作为边界，Python re 的 \w 包含 CJK
+            # 导致 产品SUPPLIER 中需要匹配 SUPPLIER 时 (?<!\w) 被 CJK 拦掉。
+            # 改用 [A-Za-z0-9] 判定边界，CJK 通过。
+            if re.search(rf"(?:^|(?<![A-Za-z0-9])){escaped}(?![A-Za-z0-9])", text, re.IGNORECASE):
                 return kw, 1.0
             if text.lower() == kw.lower():
                 return kw, 1.0
@@ -461,7 +466,7 @@ def _find_value_by_proximity(label_block, candidates, direction="right", max_dis
         if abs(dy) < lh * 0.6 and dx > 0:
             same_line_bonus = 0.15
 
-        score = (1.0 / (1.0 + dist)) * 0.45 + align_score * 0.3 + content_score * 0.2 + same_line_bonus
+        score = (1.0 / (1.0 + dist)) * 0.4 + align_score * 0.25 + content_score * 0.2 + same_line_bonus * 0.15
         if score > best_score:
             best_score = score
             best = cand
@@ -518,7 +523,9 @@ def _truncate_at_next_label(text, current_field):
         if field == current_field:
             continue
         for kw, _ in patterns:
-            m = re.search(rf"(?<!\w){re.escape(kw)}(?=\w|\s*[:：])", text, re.IGNORECASE)
+            # 要求关键词前是空格/冒号/字符串开头，防止长 token 内部匹配
+            # （如 W23-LOT456 中的 LOT、ABC-EXPIRY-DT 中的 EXP）
+            m = re.search(rf"(?:^|(?<=[\s:：])){re.escape(kw)}(?=[A-Za-z0-9]|\s*[:：]|$)", text, re.IGNORECASE)
             if m and m.start() < earliest and m.start() > 0:
                 earliest = m.start()
     return text[:earliest].strip()
@@ -542,20 +549,40 @@ def _extract_with_columns(text_blocks):
 
     如果检测到两栏：左栏通常放标签，右栏放值；分别提取后合并。
     """
-    columns = _detect_columns(text_blocks)
+    # 过滤无坐标块，避免 _box_center 传入 None 而崩溃
+    blocks_with_box = [b for b in text_blocks if b.get("box") is not None]
+    if not blocks_with_box:
+        return _extract_all_by_proximity(text_blocks)
+
+    columns = _detect_columns(blocks_with_box)
     if not columns or len(columns) < 2:
         return _extract_all_by_proximity(text_blocks)
 
     # 按列分块
     col_blocks = [[] for _ in columns]
-    for b in text_blocks:
+    for b in blocks_with_box:
         cx = _box_center(b["box"])[0]
         best_i = min(range(len(columns)), key=lambda i: abs(cx - (columns[i][0] + columns[i][1]) / 2))
         col_blocks[best_i].append(b)
 
-    # 左栏优先作为标签源，右栏作为值源，但如果右栏也有标签则互换
+    # 自适应列识别：先假设左栏为标签列、右栏为值列，
+    # 再检测哪一列包含更多已知标签关键词，如果右栏标签多于左栏则交换
+    def _count_label_blocks(blocks):
+        """统计块列表中匹配任意字段标签的块数"""
+        count = 0
+        for b in blocks:
+            for field in _FIELD_PATTERNS:
+                kw, conf = _match_label_block(b, field)
+                if conf > 0:
+                    count += 1
+                    break
+        return count
+
     label_col, value_col = 0, 1
-    if col_blocks[1] and not col_blocks[0]:
+    right_labels = _count_label_blocks(col_blocks[1]) if col_blocks[1] else 0
+    left_labels = _count_label_blocks(col_blocks[0]) if col_blocks[0] else 0
+    # 右栏标签更多，或左栏为空而右栏有标签内容时交换
+    if right_labels > left_labels or (not col_blocks[0] and col_blocks[1]):
         label_col, value_col = 1, 0
 
     # 提取：标签列内找标签，值列内找对应值
@@ -713,12 +740,13 @@ def _grid_value_for_label(block, ri, ci, row, rows, field, kw):
         if val:
             return val, (1.0 if len(parts) == 1 else 0.9)
 
-    # 3) 纵向：下一行同列的块（解决「标签在上、值在下」表格式排版）
+    # 3) 纵向：下一行同列的块拼接（解决「标签在上、值在下」表格式排版，
+    #    以及 OCR 把一个值切成多个纵向块的情况）
     col = block.get("_col")
     if col is not None and ri + 1 < len(rows):
         below = [b for b in rows[ri + 1] if b.get("_col") == col]
         if below:
-            val = _truncate_at_next_label(below[0]["text"], field)
+            val = _truncate_at_next_label(_smart_join([b["text"] for b in below]), field)
             if val:
                 return val, (1.0 if len(below) == 1 else 0.7)
     return "", 0.0
@@ -786,12 +814,20 @@ def _extract_table_cells(jsonl_text: str):
         except json.JSONDecodeError:
             continue
         # 兼容 result / data / 顶层直接是数组
-        result = obj.get("result") or obj.get("data") or obj
-        if not isinstance(result, dict):
+        # 注意：不能用 obj.get('result') or obj.get('data') 做回退，
+        # 因为 result 可能为 null 或 {}（空 dict 在 Python 中为假值）。
+        result_data = obj.get("result")
+        if result_data is None:
+            result_data = obj.get("data")
+        if result_data is None:
+            result_data = obj
+        if not isinstance(result_data, dict):
             continue
 
-        # 1) tableResults
-        for table in result.get("tableResults", []):
+        # 1) tableResults — 注意 result.get("tableResults") 可能为 null，
+        #    用 default=[] 只在 key 缺失时生效，key 存在但值为 null 时返回 None。
+        #    因此用 result_data.get("tableResults") or [] 兜底。
+        for table in (result_data.get("tableResults") or []):
             for cell in table.get("table_cells", []):
                 text = cell.get("text", "").strip()
                 if text:
@@ -804,7 +840,7 @@ def _extract_table_cells(jsonl_text: str):
                     })
 
         # 2) layoutResults: 按 label=table 或包含单元格文本的布局块分组
-        for layout in result.get("layoutResults", []):
+        for layout in (result_data.get("layoutResults") or []):
             for region in layout.get("layout", []):
                 label = region.get("label", "").lower()
                 if "table" in label:
@@ -836,11 +872,12 @@ def _parse_table_cells(cells):
     lines = []
     for row_idx in sorted(rows.keys()):
         row_cells = sorted(rows[row_idx], key=lambda c: c.get("col", 0))
-        # 把每对相邻单元格拼成 "Key: Value" 形式（标签在左，值在右）
+        # 把相邻单元格拼成 "Key: Value" 形式（标签在左，值在右）。
+        # step=2，避免每个非首格既在前一对中做 value、又在后一对中做 label。
         parts = []
-        for i, cell in enumerate(row_cells):
+        for i in range(0, len(row_cells), 2):
+            cell = row_cells[i]
             text = cell["text"]
-            # 如果当前像标签，下一个是值，则拼接
             if i + 1 < len(row_cells):
                 parts.append(f"{text}: {row_cells[i + 1]['text']}")
             else:
@@ -883,35 +920,42 @@ def parse_ocr_markdown(markdown_text: str, text_blocks=None, jsonl_text: str = N
     # ===== 网格重建提取（主路径）=====
     grid_result, grid_conf = {}, {}
     if text_blocks:
-        grid_blocks = _filter_blocks_by_score(text_blocks)
-        grid_result, grid_conf = _extract_all_by_grid(grid_blocks)
+        filtered_blocks = _filter_blocks_by_score(text_blocks)
+        # Deep copy 防止 _reconstruct_grid 注入的 _row/_col 键污染共享 dict
+        # 导致空间路径看到本不属于它的键
+        grid_result, grid_conf = _extract_all_by_grid(copy.deepcopy(filtered_blocks))
         logger.info("Grid extraction confidence: %s", grid_conf)
 
     # ===== 方案 A/B：空间感知提取（fallback）=====
     spatial_result = {}
     spatial_conf = {}
     if text_blocks:
-        spatial_result, spatial_conf = _extract_with_columns(text_blocks)
+        # 与网格路径使用相同的过滤条件，确保两边看到一致的块集合
+        spatial_blocks = _filter_blocks_by_score(text_blocks)
+        spatial_result, spatial_conf = _extract_with_columns(spatial_blocks)
         logger.info("Spatial extraction confidence: %s", spatial_conf)
 
     # ===== 原有正则兜底 =====
     regex_result = _extract_by_regex(clean_text)
 
-    # ===== 合并策略：表格 > 网格(置信度≥0.7) > 空间(A,>0.5) > 正则 =====
+    # ===== 合并策略：网格(置信度≥0.5) > 空间(置信度≥0.5) > 表格 > 正则 =====
+    # 注意：网格和空间使用相同阈值，避免 0.5-0.7 死区导致数据丢失。
+    # 表格提取放在空间之后，避免表格配对错误（例如 label-label 错配为 key-value）
+    # 压制了更准确的空间布局提取结果。
     for field in result:
         val = ""
         src = "regex"
+        # 网格提取
+        if grid_conf.get(field, 0) >= 0.5 and grid_result.get(field):
+            val, src = grid_result[field], "grid"
+        # 空间提取 fallback
+        if not val and spatial_conf.get(field, 0) >= 0.5 and spatial_result.get(field):
+            val, src = spatial_result[field], "spatial"
         # 表格
-        if table_text:
+        if not val and table_text:
             tval = _extract_single_field_by_regex(table_text, field)
             if tval:
                 val, src = tval, "table"
-        # 网格提取
-        if not val and grid_conf.get(field, 0) >= 0.7 and grid_result.get(field):
-            val, src = grid_result[field], "grid"
-        # 空间提取 fallback
-        if not val and spatial_conf.get(field, 0) > 0.5 and spatial_result.get(field):
-            val, src = spatial_result[field], "spatial"
         # 正则兜底
         if not val:
             val = regex_result.get(field, "")
@@ -951,7 +995,10 @@ def _extract_by_regex(clean_text: str) -> dict:
 
     # 提取冒号后的值，遇到下一个 "Key:" 或 "Key：" 模式时截断
     def extract(keywords):
-        for keyword in keywords:
+        # 按长度降序排列，防止短关键词（如 Lot 匹配到 Lottery）抢先匹配。
+        # 关键词列表的编写约定本就是长词在前，排序确保约定被代码强制执行。
+        sorted_kws = sorted(keywords, key=lambda k: -len(k))
+        for keyword in sorted_kws:
             esc = re.escape(keyword)
             pattern = rf"\b{esc}\.?\s*[:：]\s*(.+?)(?:\n|$)"
             match = re.search(pattern, clean_text, re.IGNORECASE)
@@ -1111,7 +1158,11 @@ async def recognize_image(image_bytes: bytes) -> dict:
             line = line.strip()
             if not line:
                 continue
-            result = json.loads(line).get("result", {})
+            try:
+                result = json.loads(line).get("result", {})
+            except json.JSONDecodeError:
+                logger.warning("Skipping malformed JSONL line: %.80s", line)
+                continue
             for res in result.get("ocrResults", []):
                 pruned = res.get("prunedResult", {})
                 rec_texts = pruned.get("rec_texts", [])
