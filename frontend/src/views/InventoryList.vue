@@ -57,7 +57,7 @@
     </van-popup>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-      <van-list v-model:loading="loading" :finished="finished" @load="loadMore">
+      <van-list v-model:loading="loading" :finished="finished" class="inventory-list" @load="loadMore">
         <van-swipe-cell v-for="item in items" :key="item.package_type + item.spec + item.plating_zone + item.surface_treatment + item.manufacturer">
           <van-cell
             :title="[item.package_type, item.spec, item.plating_zone, item.surface_treatment].filter(Boolean).join('-') || '-'"
@@ -333,7 +333,7 @@ async function doExport() {
 .filter-chip.active .chip-val { color: var(--lf-primary); font-weight: 650; }
 .filter-bar-bottom { display: flex; justify-content: flex-end; padding-top: 6px; }
 .filter-reset-link { font-size: 12px; color: var(--lf-out); cursor: pointer; }
-.inventory-page :deep(.van-cell) {
+.inventory-list :deep(.van-cell) {
   margin: 0;
   min-height: 76px;
   border-radius: 8px;
