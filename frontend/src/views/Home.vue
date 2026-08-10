@@ -14,7 +14,7 @@
       <div class="stats-grid">
         <div class="stat-card stat-total">
           <div class="stat-icon">
-            <van-icon name="bag-o" size="22" color="var(--lf-primary)" />
+            <van-icon name="bag-o" size="22" color="white" />
           </div>
           <div class="stat-content">
             <span class="stat-value">{{ totalItems }}</span>
@@ -23,7 +23,7 @@
         </div>
         <div class="stat-card stat-alert" v-if="alertItems.length">
           <div class="stat-icon">
-            <van-icon name="warning-o" size="22" color="var(--lf-out)" />
+            <van-icon name="warning-o" size="22" color="white" />
           </div>
           <div class="stat-content">
             <span class="stat-value">{{ alertItems.length }}</span>
@@ -41,28 +41,28 @@
       <div class="actions-grid">
         <div class="action-card action-out" @click="$router.push('/camera-out')">
           <div class="action-icon">
-            <van-icon name="photograph" size="24" color="var(--lf-out)" />
+            <van-icon name="photograph" size="24" color="white" />
           </div>
           <span class="action-text">拍照出库</span>
           <span class="action-desc">扫描标签快速出库</span>
         </div>
         <div class="action-card action-in" @click="$router.push('/camera')">
           <div class="action-icon">
-            <van-icon name="photograph" size="24" color="var(--lf-in)" />
+            <van-icon name="photograph" size="24" color="white" />
           </div>
           <span class="action-text">拍照入库</span>
           <span class="action-desc">扫描标签快速入库</span>
         </div>
         <div class="action-card action-export" @click="$router.push('/inventory')">
           <div class="action-icon">
-            <van-icon name="description" size="24" color="var(--lf-primary)" />
+            <van-icon name="description" size="24" color="white" />
           </div>
           <span class="action-text">库存查询</span>
           <span class="action-desc">查看库存明细</span>
         </div>
         <div class="action-card action-logs" @click="showLogs = true">
           <div class="action-icon">
-            <van-icon name="notes-o" size="24" color="var(--lf-warning)" />
+            <van-icon name="notes-o" size="24" color="white" />
           </div>
           <span class="action-text">出入库记录</span>
           <span class="action-desc">查看历史记录</span>
@@ -79,7 +79,7 @@
         <van-icon
           :name="alertExpanded ? 'arrow-up' : 'arrow-down'"
           size="16"
-          color="#999"
+          color="var(--lf-text-muted)"
           class="alert-toggle"
           @click="alertExpanded = !alertExpanded"
         />
@@ -97,7 +97,7 @@
           </div>
           <div class="alert-item-qty">
             <span class="alert-qty-value">{{ item.total_quantity }}K</span>
-            <van-icon name="arrow" size="12" color="#ee0a24" />
+            <van-icon name="arrow" size="12" color="var(--lf-out)" />
           </div>
         </div>
         <div
@@ -106,7 +106,7 @@
           @click="$router.push('/inventory?alert=1')"
         >
           <span>查看更多低库存项...</span>
-          <van-icon name="arrow" size="12" color="#999" />
+          <van-icon name="arrow" size="12" color="var(--lf-text-muted)" />
         </div>
       </div>
     </div>
@@ -116,7 +116,7 @@
       <div class="logs-popup">
         <div class="logs-header">
           <span class="logs-title">出入库记录</span>
-          <van-icon name="cross" size="20" color="#999" @click="showLogs = false" class="logs-close" />
+          <van-icon name="cross" size="20" color="var(--lf-text-muted)" @click="showLogs = false" class="logs-close" />
         </div>
         <div class="logs-list">
           <van-swipe-cell v-for="log in stockLogs" :key="log.id">
@@ -124,7 +124,7 @@
               <div class="log-icon">
                 <van-icon
                   :name="log.type === 'in' ? 'down' : 'upgrade'"
-                  :color="log.type === 'in' ? '#07c160' : '#ee0a24'"
+                  :color="log.type === 'in' ? 'var(--lf-in)' : 'var(--lf-out)'"
                   size="22"
                 />
               </div>
@@ -209,7 +209,7 @@ async function onDeleteLog(log) {
     await showConfirmDialog({
       title: '确认删除',
       message: `确定要撤销这条${actionText}记录吗？将${log.type === 'in' ? '从库存中扣减' : '归还到库存'} ${log.quantity}K。`,
-      confirmButtonColor: '#ee0a24',
+      confirmButtonColor: '#f05b68',
     })
   } catch {
     return
@@ -236,8 +236,8 @@ async function onDeleteLog(log) {
 }
 
 .home :deep(.van-nav-bar) {
-  background: var(--lf-text);
-  border-bottom-color: var(--lf-text);
+  background: var(--lf-primary-dark);
+  border-bottom-color: var(--lf-primary-dark);
 }
 .home :deep(.van-nav-bar__title) {
   color: white;
@@ -269,9 +269,16 @@ async function onDeleteLog(log) {
   align-items: center;
   min-height: 86px;
   padding: 14px;
-  background: white;
+  background: var(--lf-primary-soft);
   border: 1px solid var(--lf-border);
   border-radius: 8px;
+}
+.stat-card.stat-total {
+  border-color: #a9dcf4;
+}
+.stat-card.stat-alert {
+  background: var(--lf-out-soft);
+  border-color: #ffc4cb;
 }
 .stat-icon {
   width: 38px;
@@ -280,12 +287,12 @@ async function onDeleteLog(log) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #edf7f6;
+  background: var(--lf-primary);
   border-radius: 6px;
   margin-right: 10px;
 }
 .stat-card.stat-alert .stat-icon {
-  background: #fff1f0;
+  background: var(--lf-out);
 }
 .stat-content {
   display: flex;
@@ -346,12 +353,28 @@ async function onDeleteLog(log) {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  background: var(--lf-surface-muted);
+  background: var(--lf-primary);
 }
-.action-out { border-left: 3px solid var(--lf-out); }
-.action-in { border-left: 3px solid var(--lf-in); }
-.action-export { border-left: 3px solid var(--lf-primary); }
-.action-logs { border-left: 3px solid var(--lf-warning); }
+.action-out {
+  border-color: #ffc4cb;
+  background: var(--lf-out-soft);
+}
+.action-out .action-icon { background: var(--lf-out); }
+.action-in {
+  border-color: #a9e8c8;
+  background: var(--lf-in-soft);
+}
+.action-in .action-icon { background: var(--lf-in); }
+.action-export {
+  border-color: #a9dcf4;
+  background: var(--lf-primary-soft);
+}
+.action-export .action-icon { background: var(--lf-primary); }
+.action-logs {
+  border-color: #ffdda0;
+  background: var(--lf-warning-soft);
+}
+.action-logs .action-icon { background: var(--lf-warning); }
 .action-text {
   align-self: end;
   font-size: 13px;
@@ -369,9 +392,9 @@ async function onDeleteLog(log) {
   padding: 22px 16px 0;
 }
 .alert-title-bar {
-  background: #fff7f6;
+  background: var(--lf-out-soft);
   padding: 11px 14px;
-  border: 1px solid #edcbc8;
+  border: 1px solid #ffc4cb;
   border-radius: 8px 8px 0 0;
   display: flex;
   align-items: center;
@@ -391,7 +414,7 @@ async function onDeleteLog(log) {
 }
 .alert-list {
   background: white;
-  border: 1px solid #edcbc8;
+  border: 1px solid #ffc4cb;
   border-top: 0;
   border-radius: 0 0 8px 8px;
 }
@@ -484,7 +507,7 @@ async function onDeleteLog(log) {
   justify-content: center;
   border-radius: 6px;
   margin-right: 12px;
-  background: var(--lf-surface-muted);
+  background: var(--lf-primary-soft);
 }
 .log-main {
   display: flex;

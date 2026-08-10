@@ -327,7 +327,7 @@ async function doExport() {
   flex: 1; min-width: 0; justify-content: center;
 }
 .filter-chip:active { opacity: 0.7; }
-.filter-chip.active { border-color: var(--lf-primary); background: #edf7f6; }
+.filter-chip.active { border-color: var(--lf-primary); background: var(--lf-primary-soft); }
 .chip-label { color: var(--lf-text-muted); white-space: nowrap; }
 .chip-val { color: var(--lf-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80px; }
 .filter-chip.active .chip-val { color: var(--lf-primary); font-weight: 650; }

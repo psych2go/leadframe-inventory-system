@@ -51,7 +51,7 @@
             <div>有效期: {{ b.expiry_date || '-' }}</div>
             <div v-if="b.note" class="note-row">
               <span>备注: {{ b.note }}</span>
-              <van-icon name="edit" size="14" color="#1989fa" @click.stop="onEditNote(b)" />
+              <van-icon name="edit" size="14" color="var(--lf-primary)" @click.stop="onEditNote(b)" />
             </div>
             <div v-else class="note-row">
               <span class="add-note" @click.stop="onEditNote(b)">添加备注</span>
@@ -80,7 +80,7 @@
             <div class="log-icon" :class="log.type === 'in' ? 'log-in' : 'log-out'">
               <van-icon
                 :name="log.type === 'in' ? 'down' : 'upgrade'"
-                :color="log.type === 'in' ? '#07c160' : '#ee0a24'"
+                :color="log.type === 'in' ? 'var(--lf-in)' : 'var(--lf-out)'"
                 size="20"
               />
             </div>
@@ -111,7 +111,7 @@
       <div class="out-popup">
         <div class="out-popup-header">
           <span class="out-popup-title">选择入库批次</span>
-          <van-icon name="cross" size="20" color="#999" @click="showInForm = false" />
+          <van-icon name="cross" size="20" color="var(--lf-text-muted)" @click="showInForm = false" />
         </div>
         <div class="out-batch-list">
           <div
@@ -140,7 +140,7 @@
       <div class="out-popup">
         <div class="out-popup-header">
           <span class="out-popup-title">选择出库批次</span>
-          <van-icon name="cross" size="20" color="#999" @click="showOutForm = false" />
+          <van-icon name="cross" size="20" color="var(--lf-text-muted)" @click="showOutForm = false" />
         </div>
         <div class="out-batch-list">
           <div
@@ -169,7 +169,7 @@
       <div class="note-popup">
         <div class="out-popup-header">
           <span class="out-popup-title">编辑备注</span>
-          <van-icon name="cross" size="20" color="#999" @click="showNoteForm = false" />
+          <van-icon name="cross" size="20" color="var(--lf-text-muted)" @click="showNoteForm = false" />
         </div>
         <div class="note-popup-info">
           批号: {{ noteBatch?.batch_no || '-' }}　　数量: {{ noteBatch?.quantity || '0' }}K
@@ -303,7 +303,7 @@ async function onDeleteLog(log) {
     await showConfirmDialog({
       title: '确认删除',
       message: `确定撤销这条${actionText}记录？将${log.type === 'in' ? '从库存中扣减' : '归还到库存'} ${log.quantity}K。`,
-      confirmButtonColor: '#ee0a24',
+      confirmButtonColor: '#f05b68',
     })
   } catch { return }
   try {
@@ -320,7 +320,7 @@ async function onDeleteBatch(b) {
     await showConfirmDialog({
       title: '确认删除',
       message: `删除批号 ${b.batch_no || '-'} 的库存记录（${b.quantity}K）？`,
-      confirmButtonColor: '#ee0a24',
+      confirmButtonColor: '#f05b68',
     })
   } catch { return }
   try {
@@ -380,52 +380,52 @@ async function doStockOut() {
 </script>
 
 <style scoped>
-.grouped-detail { padding-bottom: 20px; background: #f7f8fa; min-height: 100vh; }
+.grouped-detail { padding-bottom: 20px; background: var(--lf-bg); min-height: 100vh; }
 .section-title {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 16px 8px; font-size: 15px; font-weight: 600; color: #333;
+  padding: 16px 16px 8px; font-size: 15px; font-weight: 700; color: var(--lf-text);
 }
 .section-actions { display: flex; gap: 12px; }
 .section-action {
-  font-size: 13px; color: #ee0a24; cursor: pointer;
+  font-size: 13px; color: var(--lf-out); cursor: pointer;
   display: flex; align-items: center; gap: 4px;
 }
 .section-action-in {
-  font-size: 13px; color: #07c160; cursor: pointer;
+  font-size: 13px; color: var(--lf-in); cursor: pointer;
   display: flex; align-items: center; gap: 4px;
 }
 .batch-list { padding: 0 12px; }
 .batch-title { display: flex; align-items: center; gap: 6px; font-weight: 600; }
-.qty { font-size: 14px; font-weight: 600; color: #1989fa; }
-.qty-alert { font-size: 14px; font-weight: 600; color: #ee0a24; }
-.selected-batch { background: #f0f9ff; }
+.qty { font-size: 14px; font-weight: 700; color: var(--lf-primary); }
+.qty-alert { font-size: 14px; font-weight: 700; color: var(--lf-out); }
+.selected-batch { background: var(--lf-primary-soft); }
 .batch-delete-btn { height: 100%; }
 .note-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
-.add-note { font-size: 12px; color: #1989fa; cursor: pointer; }
+.add-note { font-size: 12px; color: var(--lf-primary); cursor: pointer; }
 .note-popup { padding: 16px 0; }
-.note-popup-info { padding: 0 16px 12px; font-size: 13px; color: #666; }
-.note-popup :deep(.van-cell) { margin: 0 16px; border-radius: 8px; background: #f7f8fa; }
+.note-popup-info { padding: 0 16px 12px; font-size: 13px; color: var(--lf-text-muted); }
+.note-popup :deep(.van-cell) { margin: 0 16px; border-radius: 8px; background: var(--lf-primary-soft); }
 
 .log-list { padding: 0 12px; }
-.log-finished { display: block; text-align: center; padding: 12px 0; font-size: 13px; color: #999; }
+.log-finished { display: block; text-align: center; padding: 12px 0; font-size: 13px; color: var(--lf-text-muted); }
 .log-item {
   display: flex; align-items: center; padding: 12px;
-  background: white; border-radius: 8px; margin-bottom: 8px;
+  background: white; border: 1px solid var(--lf-border); border-radius: 8px; margin-bottom: 8px;
 }
 .log-icon {
-  width: 36px; height: 36px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
   margin-right: 10px; flex-shrink: 0;
 }
-.log-in { background: #e8f5e9; }
-.log-out { background: #fff1f0; }
+.log-in { background: var(--lf-in-soft); }
+.log-out { background: var(--lf-out-soft); }
 .log-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.log-title { font-size: 14px; font-weight: 500; color: #333; }
-.log-time { font-size: 12px; color: #999; margin-top: 2px; }
-.log-note { font-size: 12px; color: #666; margin-top: 2px; }
+.log-title { font-size: 14px; font-weight: 650; color: var(--lf-text); }
+.log-time { font-size: 12px; color: var(--lf-text-muted); margin-top: 2px; }
+.log-note { font-size: 12px; color: var(--lf-text-muted); margin-top: 2px; }
 .log-qty { font-size: 15px; font-weight: 700; flex-shrink: 0; margin-left: 8px; }
-.text-green { color: #07c160; }
-.text-red { color: #ee0a24; }
+.text-green { color: var(--lf-in); }
+.text-red { color: var(--lf-out); }
 .grouped-detail :deep(.van-swipe-cell) { margin: 0 0 8px; }
 .grouped-detail :deep(.van-swipe-cell__right) { border-radius: 8px; }
 
@@ -438,13 +438,13 @@ async function doStockOut() {
 .out-batch-list { max-height: 240px; overflow-y: auto; }
 .out-batch-item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;
+  padding: 12px; border: 1px solid var(--lf-border); border-radius: 8px;
   margin-bottom: 8px; cursor: pointer; transition: all 0.15s;
 }
-.out-batch-item.active { border-color: #1989fa; background: #f0f9ff; }
+.out-batch-item.active { border-color: var(--lf-primary); background: var(--lf-primary-soft); }
 .out-batch-info { display: flex; flex-direction: column; }
 .out-batch-no { font-size: 14px; font-weight: 500; }
-.out-batch-date { font-size: 12px; color: #999; margin-top: 2px; }
-.out-batch-qty { font-size: 14px; font-weight: 600; color: #1989fa; }
+.out-batch-date { font-size: 12px; color: var(--lf-text-muted); margin-top: 2px; }
+.out-batch-qty { font-size: 14px; font-weight: 700; color: var(--lf-primary); }
 .out-form { margin-top: 16px; }
 </style>

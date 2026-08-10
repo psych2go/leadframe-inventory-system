@@ -78,7 +78,7 @@ async function handleLogin() {
   border-top: 4px solid var(--lf-primary);
   border-radius: 8px;
   padding: 36px 24px 28px;
-  box-shadow: 0 8px 24px rgba(23, 52, 59, 0.08);
+  box-shadow: 0 12px 32px rgba(7, 152, 213, 0.12);
   text-align: center;
 }
 .login-icon {

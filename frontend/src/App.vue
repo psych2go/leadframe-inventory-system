@@ -8,17 +8,22 @@
 
 <style>
 :root {
-  --lf-bg: #f3f6f7;
+  --lf-bg: #f3faff;
   --lf-surface: #ffffff;
-  --lf-surface-muted: #eaf0f1;
-  --lf-text: #17343b;
-  --lf-text-muted: #708187;
-  --lf-border: #d9e2e4;
-  --lf-primary: #0f7b78;
-  --lf-primary-dark: #0a5f5d;
-  --lf-in: #2f9e68;
-  --lf-out: #d9544d;
-  --lf-warning: #c98218;
+  --lf-surface-muted: #e8f6ff;
+  --lf-text: #17324d;
+  --lf-text-muted: #648096;
+  --lf-border: #cfe4f0;
+  --lf-primary: #0798d5;
+  --lf-primary-dark: #0875b5;
+  --lf-in: #079957;
+  --lf-out: #f05b68;
+  --lf-warning: #d97706;
+  --lf-info: #5968e9;
+  --lf-primary-soft: #e9f7ff;
+  --lf-in-soft: #ecfff5;
+  --lf-out-soft: #fff1f3;
+  --lf-warning-soft: #fff8e7;
   --lf-data-font: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --van-primary-color: var(--lf-primary);
   --van-success-color: var(--lf-in);
@@ -58,7 +63,7 @@ textarea {
 }
 
 .van-nav-bar {
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.98);
   border-bottom: 1px solid var(--lf-border);
   box-shadow: none;
 }
@@ -81,7 +86,7 @@ textarea {
   overflow: hidden;
   border: 1px solid var(--lf-border);
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(23, 52, 59, 0.04);
+  box-shadow: 0 4px 14px rgba(7, 152, 213, 0.06);
 }
 
 .van-cell-group__title {
@@ -92,7 +97,7 @@ textarea {
 }
 
 .van-field__label {
-  color: #466067;
+  color: #496b82;
 }
 
 .van-field__control,
@@ -103,6 +108,15 @@ textarea {
 .van-button {
   border-radius: 6px;
   font-weight: 650;
+}
+
+.van-button--primary {
+  box-shadow: 0 4px 12px rgba(7, 152, 213, 0.18);
+}
+
+:focus-visible {
+  outline: 3px solid rgba(7, 152, 213, 0.26);
+  outline-offset: 2px;
 }
 
 .van-button--large {

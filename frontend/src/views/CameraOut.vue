@@ -261,10 +261,13 @@ async function doStockOut() {
 }
 .upload-card:active { transform: translateY(1px); }
 .camera-card {
-  border-color: #e5bbb7;
-  background: #fff8f7;
+  border-color: #ffc4cb;
+  background: var(--lf-out-soft);
 }
-.album-card { background: #f8fafb; }
+.album-card {
+  border-color: #a9dcf4;
+  background: var(--lf-primary-soft);
+}
 .upload-icon-wrap {
   width: 44px;
   height: 44px;
@@ -276,7 +279,7 @@ async function doStockOut() {
   align-items: center;
   justify-content: center;
 }
-.album-card .upload-icon-wrap { background: #45636a; }
+.album-card .upload-icon-wrap { background: var(--lf-primary); }
 .upload-text {
   font-size: 14px;
   font-weight: 700;
@@ -312,7 +315,7 @@ async function doStockOut() {
 .compact-empty :deep(.van-empty__image) { width: 64px; height: 64px; }
 .qty { font-family: var(--lf-data-font); font-size: 14px; font-weight: 700; color: var(--lf-primary); }
 .item-title { font-weight: 700; font-size: 14px; }
-.selected-item { background-color: #edf7f6; }
+.selected-item { background-color: var(--lf-primary-soft); }
 
 .camera-page :deep(.van-cell-group) {
   margin: 12px;

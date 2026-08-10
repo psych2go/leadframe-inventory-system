@@ -172,7 +172,7 @@ async function doStockOut() {
   overflow: hidden;
   border: 1px solid var(--lf-border);
   border-radius: 0 0 8px 8px;
-  background: #f8fafb;
+  background: var(--lf-primary-soft);
 }
 .batch-list :deep(.van-cell) { padding-left: 24px; }
 .batch-qty { font-family: var(--lf-data-font); font-size: 14px; font-weight: 650; color: var(--lf-text); }

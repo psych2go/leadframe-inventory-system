@@ -17,7 +17,7 @@
           </div>
           <div class="audit-body">
             <div class="audit-user">
-              <van-icon name="user-o" size="14" color="#999" />
+              <van-icon name="user-o" size="14" color="var(--lf-text-muted)" />
               <span>{{ item.user_name || item.user_id || '未知用户' }}</span>
             </div>
             <div class="audit-detail" v-if="item.detail">{{ item.detail }}</div>
@@ -25,7 +25,7 @@
               <div v-for="(change, field) in parseChanges(item.changes)" :key="field" class="change-row">
                 <span class="change-field">{{ field }}</span>
                 <span class="change-old">{{ change.old || '-' }}</span>
-                <van-icon name="arrow" size="12" color="#999" />
+                <van-icon name="arrow" size="12" color="var(--lf-text-muted)" />
                 <span class="change-new">{{ change.new || '-' }}</span>
               </div>
             </div>
@@ -107,7 +107,7 @@ async function loadMore() {
 
 <style scoped>
 .audit-page {
-  background: #f7f8fa;
+  background: var(--lf-bg);
   min-height: 100vh;
   padding-bottom: 20px;
 }
@@ -122,8 +122,9 @@ async function loadMore() {
   margin: 8px 12px;
   padding: 12px 16px;
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--lf-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(7, 152, 213, 0.06);
 }
 .audit-header {
   display: flex;
@@ -138,33 +139,33 @@ async function loadMore() {
   border-radius: 4px;
   color: white;
 }
-.action-stock_in { background: #07c160; }
-.action-stock_out { background: #ee0a24; }
-.action-update { background: #1989fa; }
-.action-delete { background: #999; }
+.action-stock_in { background: var(--lf-in); }
+.action-stock_out { background: var(--lf-out); }
+.action-update { background: var(--lf-primary); }
+.action-delete { background: var(--lf-info); }
 .audit-time {
   font-size: 12px;
-  color: #999;
+  color: var(--lf-text-muted);
 }
 .audit-body {
   font-size: 13px;
-  color: #333;
+  color: var(--lf-text);
 }
 .audit-user {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #666;
+  color: var(--lf-text-muted);
   margin-bottom: 4px;
 }
 .audit-detail {
-  color: #666;
+  color: var(--lf-text-muted);
   margin-bottom: 4px;
 }
 .audit-changes {
   margin-top: 6px;
   padding: 8px;
-  background: #f7f8fa;
+  background: var(--lf-primary-soft);
   border-radius: 6px;
 }
 .change-row {
@@ -175,16 +176,16 @@ async function loadMore() {
   font-size: 12px;
 }
 .change-field {
-  color: #1989fa;
+  color: var(--lf-primary);
   font-weight: 500;
   min-width: 60px;
 }
 .change-old {
-  color: #999;
+  color: var(--lf-text-muted);
   text-decoration: line-through;
 }
 .change-new {
-  color: #333;
+  color: var(--lf-text);
   font-weight: 500;
 }
 .audit-page :deep(.van-nav-bar) {

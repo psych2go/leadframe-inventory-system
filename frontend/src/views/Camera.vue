@@ -299,10 +299,13 @@ async function submitStockIn() {
 }
 .upload-card:active { transform: translateY(1px); }
 .camera-card {
-  border-color: #a7d0c3;
-  background: #f4fbf7;
+  border-color: #a9e8c8;
+  background: var(--lf-in-soft);
 }
-.album-card { background: #f8fafb; }
+.album-card {
+  border-color: #a9dcf4;
+  background: var(--lf-primary-soft);
+}
 .upload-icon-wrap {
   width: 44px;
   height: 44px;
@@ -314,7 +317,7 @@ async function submitStockIn() {
   align-items: center;
   justify-content: center;
 }
-.album-card .upload-icon-wrap { background: #45636a; }
+.album-card .upload-icon-wrap { background: var(--lf-primary); }
 .upload-text {
   font-size: 14px;
   font-weight: 700;
