@@ -14,7 +14,7 @@
       <div class="stats-grid">
         <div class="stat-card stat-total">
           <div class="stat-icon">
-            <van-icon name="bag-o" size="24" color="#1989fa" />
+            <van-icon name="bag-o" size="22" color="var(--lf-primary)" />
           </div>
           <div class="stat-content">
             <span class="stat-value">{{ totalItems }}</span>
@@ -23,7 +23,7 @@
         </div>
         <div class="stat-card stat-alert" v-if="alertItems.length">
           <div class="stat-icon">
-            <van-icon name="warning-o" size="24" color="#ee0a24" />
+            <van-icon name="warning-o" size="22" color="var(--lf-out)" />
           </div>
           <div class="stat-content">
             <span class="stat-value">{{ alertItems.length }}</span>
@@ -41,28 +41,28 @@
       <div class="actions-grid">
         <div class="action-card action-out" @click="$router.push('/camera-out')">
           <div class="action-icon">
-            <van-icon name="photograph" size="28" color="#ee0a24" />
+            <van-icon name="photograph" size="24" color="var(--lf-out)" />
           </div>
           <span class="action-text">拍照出库</span>
           <span class="action-desc">扫描标签快速出库</span>
         </div>
         <div class="action-card action-in" @click="$router.push('/camera')">
           <div class="action-icon">
-            <van-icon name="photograph" size="28" color="#07c160" />
+            <van-icon name="photograph" size="24" color="var(--lf-in)" />
           </div>
           <span class="action-text">拍照入库</span>
           <span class="action-desc">扫描标签快速入库</span>
         </div>
         <div class="action-card action-export" @click="$router.push('/inventory')">
           <div class="action-icon">
-            <van-icon name="description" size="28" color="#1989fa" />
+            <van-icon name="description" size="24" color="var(--lf-primary)" />
           </div>
           <span class="action-text">库存查询</span>
           <span class="action-desc">查看库存明细</span>
         </div>
         <div class="action-card action-logs" @click="showLogs = true">
           <div class="action-icon">
-            <van-icon name="notes-o" size="28" color="#ff976a" />
+            <van-icon name="notes-o" size="24" color="var(--lf-warning)" />
           </div>
           <span class="action-text">出入库记录</span>
           <span class="action-desc">查看历史记录</span>
@@ -73,7 +73,7 @@
     <!-- 库存预警 -->
     <div class="alert-section" v-if="alertItems.length">
       <div class="section-title-bar alert-title-bar">
-        <van-icon name="warning-o" color="#ee0a24" size="18" />
+        <van-icon name="warning-o" color="var(--lf-out)" size="18" />
         <span class="section-title-text alert-text">库存预警</span>
         <span class="alert-count">{{ alertItems.length }} 项低于 {{ threshold }}K</span>
         <van-icon
@@ -230,57 +230,59 @@ async function onDeleteLog(log) {
 
 <style scoped>
 .home {
-  padding-bottom: 80px;
-  background: linear-gradient(180deg, #f0f5ff 0%, #f7f8fa 100%);
+  padding-bottom: 48px;
+  background: var(--lf-bg);
   min-height: 100vh;
 }
 
-/* 导航栏 */
 .home :deep(.van-nav-bar) {
-  background: linear-gradient(135deg, #4a90e2 0%, #1989fa 100%);
+  background: var(--lf-text);
+  border-bottom-color: var(--lf-text);
 }
 .home :deep(.van-nav-bar__title) {
   color: white;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
 }
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   cursor: pointer;
 }
 .nav-right-text {
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
   color: white;
 }
 
-/* 统计卡片 */
 .stats-section {
   padding: 16px 16px 0;
 }
 .stats-grid {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
 }
 .stat-card {
-  flex: 1;
   display: flex;
   align-items: center;
-  padding: 16px;
+  min-height: 86px;
+  padding: 14px;
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--lf-border);
+  border-radius: 8px;
 }
 .stat-icon {
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f5ff;
-  border-radius: 12px;
-  margin-right: 12px;
+  background: #edf7f6;
+  border-radius: 6px;
+  margin-right: 10px;
 }
 .stat-card.stat-alert .stat-icon {
   background: #fff1f0;
@@ -290,100 +292,97 @@ async function onDeleteLog(log) {
   flex-direction: column;
 }
 .stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: #333;
+  font-family: var(--lf-data-font);
+  font-size: 22px;
+  font-weight: 750;
+  color: var(--lf-text);
 }
 .stat-label {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: var(--lf-text-muted);
   margin-top: 2px;
 }
 
-/* 功能按钮 */
 .actions-section {
-  padding: 16px 16px 0;
+  padding: 22px 16px 0;
 }
 .section-title-bar {
   display: flex;
   align-items: center;
-  padding: 0 0 12px;
+  padding: 0 0 10px;
 }
 .section-title-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #333;
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--lf-text);
 }
 .actions-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
 .action-card {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
   align-items: center;
-  padding: 20px 16px;
+  min-height: 84px;
+  padding: 12px;
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
+  border: 1px solid var(--lf-border);
+  border-radius: 8px;
+  transition: border-color 0.16s, transform 0.16s;
   cursor: pointer;
 }
 .action-card:active {
-  transform: scale(0.96);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(1px);
 }
 .action-icon {
-  width: 56px;
-  height: 56px;
+  grid-row: 1 / 3;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  margin-bottom: 12px;
+  border-radius: 6px;
+  background: var(--lf-surface-muted);
 }
-.action-out .action-icon {
-  background: linear-gradient(135deg, #fff1f0 0%, #ffebe8 100%);
-}
-.action-in .action-icon {
-  background: linear-gradient(135deg, #e8f5e9 0%, #d4edda 100%);
-}
-.action-export .action-icon {
-  background: linear-gradient(135deg, #f0f5ff 0%, #e3f2fd 100%);
-}
-.action-logs .action-icon {
-  background: linear-gradient(135deg, #fff7e6 0%, #ffe8cc 100%);
-}
+.action-out { border-left: 3px solid var(--lf-out); }
+.action-in { border-left: 3px solid var(--lf-in); }
+.action-export { border-left: 3px solid var(--lf-primary); }
+.action-logs { border-left: 3px solid var(--lf-warning); }
 .action-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 4px;
+  align-self: end;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lf-text);
 }
 .action-desc {
-  font-size: 12px;
-  color: #999;
+  align-self: start;
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--lf-text-muted);
 }
 
-/* 库存预警 */
 .alert-section {
-  padding: 16px 16px 0;
+  padding: 22px 16px 0;
 }
 .alert-title-bar {
-  background: linear-gradient(135deg, #fff1f0 0%, #ffebe8 100%);
-  padding: 12px 16px;
-  border-radius: 12px 12px 0 0;
+  background: #fff7f6;
+  padding: 11px 14px;
+  border: 1px solid #edcbc8;
+  border-radius: 8px 8px 0 0;
   display: flex;
   align-items: center;
 }
 .alert-text {
-  color: #ee0a24;
+  color: var(--lf-out);
   margin-left: 6px;
 }
 .alert-count {
-  font-size: 13px;
-  color: #ee0a24;
+  font-size: 11px;
+  color: var(--lf-out);
   margin-left: auto;
   margin-right: 8px;
 }
@@ -392,15 +391,16 @@ async function onDeleteLog(log) {
 }
 .alert-list {
   background: white;
-  border-radius: 0 0 12px 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #edcbc8;
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
 }
 .alert-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f5f5f5;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--lf-border);
   cursor: pointer;
 }
 .alert-item:last-child {
@@ -412,12 +412,12 @@ async function onDeleteLog(log) {
 }
 .alert-item-title {
   font-size: 14px;
-  font-weight: 600;
-  color: #333;
+  font-weight: 650;
+  color: var(--lf-text);
 }
 .alert-item-info {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: var(--lf-text-muted);
   margin-top: 4px;
 }
 .alert-item-qty {
@@ -426,22 +426,22 @@ async function onDeleteLog(log) {
   gap: 8px;
 }
 .alert-qty-value {
-  font-size: 16px;
-  font-weight: 700;
-  color: #ee0a24;
+  font-family: var(--lf-data-font);
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--lf-out);
 }
 .alert-more {
   justify-content: center;
-  color: #999;
-  font-size: 13px;
+  color: var(--lf-text-muted);
+  font-size: 12px;
 }
 
-/* 出入库记录弹窗 */
 .logs-popup {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f7f8fa;
+  background: var(--lf-bg);
 }
 .logs-header {
   display: flex;
@@ -449,13 +449,13 @@ async function onDeleteLog(log) {
   justify-content: center;
   padding: 16px;
   background: white;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--lf-border);
   position: relative;
 }
 .logs-title {
   font-size: 16px;
-  font-weight: 600;
-  color: #333;
+  font-weight: 700;
+  color: var(--lf-text);
 }
 .logs-close {
   position: absolute;
@@ -470,21 +470,21 @@ async function onDeleteLog(log) {
 .log-item {
   display: flex;
   align-items: center;
-  padding: 14px 16px;
+  padding: 12px 14px;
   background: white;
-  border-radius: 12px;
+  border: 1px solid var(--lf-border);
+  border-radius: 8px;
   margin-bottom: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 .log-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 6px;
   margin-right: 12px;
-  background: #f7f8fa;
+  background: var(--lf-surface-muted);
 }
 .log-main {
   display: flex;
@@ -493,30 +493,37 @@ async function onDeleteLog(log) {
 }
 .log-title {
   font-size: 14px;
-  font-weight: 500;
-  color: #333;
+  font-weight: 650;
+  color: var(--lf-text);
 }
 .log-time {
-  font-size: 12px;
-  color: #999;
+  font-family: var(--lf-data-font);
+  font-size: 11px;
+  color: var(--lf-text-muted);
   margin-top: 4px;
 }
 .log-qty {
-  font-size: 16px;
-  font-weight: 700;
+  font-family: var(--lf-data-font);
+  font-size: 15px;
+  font-weight: 750;
 }
 .log-delete-btn {
   height: 100%;
 }
 .text-green {
-  color: #07c160;
+  color: var(--lf-in);
 }
 .text-red {
-  color: #ee0a24;
+  color: var(--lf-out);
 }
 
-/* 空状态 */
 .home :deep(.van-empty) {
   padding: 80px 0;
+}
+
+@media (max-width: 360px) {
+  .actions-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

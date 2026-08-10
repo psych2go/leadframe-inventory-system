@@ -108,5 +108,12 @@ async function submit() {
 </script>
 
 <style scoped>
-.submit-bar { padding: 16px; }
+.stock-in-page :deep(.van-field__control) {
+  font-family: var(--lf-data-font);
+}
+.stock-in-page :deep(.van-button--primary) {
+  background: var(--lf-in);
+  border-color: var(--lf-in);
+}
+.submit-bar { padding: 12px; }
 </style>

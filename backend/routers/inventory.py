@@ -3,14 +3,14 @@ import re
 import sqlite3
 from datetime import datetime
 
-from fastapi import APIRouter, Query, Request, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import database as db
-from routers.auth import get_current_user_optional
+from routers.auth import get_client_ip, get_current_user, get_current_user_optional
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 _QTY_PATTERN = re.compile(r"^[\d.]+\s*(K|KPC|KPD|k|kpc|kpd|M|PCS|pcs|只|万)?\s*$", re.IGNORECASE)
 _DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -246,7 +246,7 @@ def _audit(conn, request: Request, action: str, table_name: str,
     user_id, user_name = _audit_user(request) if user is None else user
     db.write_audit(
         conn, user_id, user_name, action, table_name, record_id,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         **kwargs,
     )
 
@@ -457,4 +457,12 @@ def get_image(filename: str):
         raise HTTPException(400, "非法文件路径")
     if not os.path.exists(filepath):
         raise HTTPException(404, "图片不存在")
-    return FileResponse(filepath)
+    return FileResponse(
+        filepath,
+        media_type="image/jpeg",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )

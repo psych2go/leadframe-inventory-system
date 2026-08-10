@@ -6,24 +6,21 @@
       <div class="upload-cards">
         <div class="upload-card camera-card" @click="handleCapture('camera')">
           <div class="upload-icon-wrap">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
+            <van-icon name="photograph" size="28" />
           </div>
-          <div class="upload-text">拍照</div>
-          <div class="upload-hint">打开相机拍摄</div>
+          <div>
+            <div class="upload-text">拍照</div>
+            <div class="upload-hint">实时取景</div>
+          </div>
         </div>
         <div class="upload-card album-card" @click="handleCapture('album')">
           <div class="upload-icon-wrap">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
+            <van-icon name="photo-o" size="28" />
           </div>
-          <div class="upload-text">选择图片</div>
-          <div class="upload-hint">从相册上传</div>
+          <div>
+            <div class="upload-text">选择图片</div>
+            <div class="upload-hint">本地图片</div>
+          </div>
         </div>
       </div>
     </div>
@@ -279,86 +276,97 @@ async function submitStockIn() {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f7f8fa;
+  background: var(--lf-bg);
 }
-.upload-area { padding: 32px 16px; text-align: center; }
+.upload-area { padding: 20px 16px 8px; }
 .upload-cards {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 .upload-card {
-  flex: 1;
-  max-width: 170px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 24px 16px;
-  border-radius: 16px;
-  color: #fff;
+  min-height: 88px;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--lf-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--lf-text);
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: border-color 0.16s, background-color 0.16s, transform 0.16s;
 }
-.upload-card:active {
-  transform: scale(0.97);
-}
+.upload-card:active { transform: translateY(1px); }
 .camera-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
+  border-color: #a7d0c3;
+  background: #f4fbf7;
 }
-.album-card {
-  background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%);
-  box-shadow: 0 4px 16px rgba(54, 209, 220, 0.35);
-}
+.album-card { background: #f8fafb; }
 .upload-icon-wrap {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 6px;
+  background: var(--lf-primary);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+.album-card .upload-icon-wrap { background: #45636a; }
 .upload-text {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
 }
 .upload-hint {
+  margin-top: 3px;
+  color: var(--lf-text-muted);
   font-size: 11px;
-  opacity: 0.8;
+  font-weight: 500;
 }
-.loading { padding: 40px; text-align: center; }
-.result { margin-top: 16px; }
-.raw-text { margin: 16px 0; }
+.loading {
+  margin: 16px;
+  padding: 40px 16px;
+  border: 1px solid var(--lf-border);
+  border-radius: 8px;
+  background: white;
+  text-align: center;
+}
+.result { padding-bottom: 24px; }
+.raw-text { margin: 4px 0 16px; }
 .raw-text-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 16px;
+  min-height: 42px;
+  padding: 8px 14px;
   gap: 8px;
-  font-size: 13px;
-  line-height: 1.6;
+  font-family: var(--lf-data-font);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .raw-text-line:not(:last-child) {
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--lf-border);
 }
 .line-text {
   flex: 1;
   word-break: break-all;
 }
-.submit-bar { padding: 16px; }
+.submit-bar { padding: 12px; }
 
 .camera-page :deep(.van-cell-group) {
   margin: 12px;
-  border-radius: 12px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 .camera-page :deep(.van-cell) {
   border-radius: 0;
 }
-.camera-page :deep(.van-nav-bar) {
-  background: white;
+.camera-page :deep(.van-field__control),
+.camera-page :deep(.van-cell__value) {
+  font-family: var(--lf-data-font);
+}
+.camera-page :deep(.van-button--primary) {
+  background: var(--lf-in);
+  border-color: var(--lf-in);
 }
 </style>

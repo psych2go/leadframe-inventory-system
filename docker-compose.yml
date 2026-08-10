@@ -1,8 +1,8 @@
 services:
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     env_file:
       - ./backend/.env
     environment:
@@ -12,7 +12,10 @@ services:
       - WECORP_AGENT_ID=${WECORP_AGENT_ID:-}
       - APP_BASE_URL=${APP_BASE_URL:-}
       - JWT_SECRET=${JWT_SECRET:-}
-      - AUTH_REQUIRED=${AUTH_REQUIRED:-false}
+      - LOGIN_PASSWORD=${LOGIN_PASSWORD:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-}
+      - DB_PATH=/app/data/inventory.db
     volumes:
       - ./backend/uploads:/app/uploads
       - db-data:/app/data
@@ -23,6 +26,8 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   frontend:
     image: nginx:alpine
@@ -39,6 +44,8 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   db-data:

@@ -13,6 +13,83 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import ocr_service
 
 
+def _pp_ocr_v6_aami_blocks():
+    texts = [
+        "AAMI", "MFG Date:14-Apr-2023", "EXP Date: 13-Apr-2024", "Ship To:",
+        "AAMI P/N: 03080CBDX1AB00-R", "XINGHANG/Z", "DWG:3-080180-S0T223 REV.0",
+        "AAMI Ref: 22563786/001", "DESCRIPTION:", "1", "LOT NO:", "3L",
+        "80X180 SOT A194FH", "Ag", "88.80", "P/N:", "S0T223-080180",
+        "18.000", "QTY:", "KPD",
+    ]
+    boxes = [
+        [136, 548, 224, 589], [403, 564, 745, 608], [1111, 588, 1470, 631],
+        [131, 603, 230, 638], [280, 607, 696, 652], [126, 626, 463, 686],
+        [907, 629, 1356, 670], [575, 661, 920, 701], [119, 691, 298, 732],
+        [1135, 683, 1166, 732], [997, 698, 1109, 739], [117, 741, 152, 766],
+        [163, 738, 457, 780], [109, 758, 156, 795], [163, 760, 255, 793],
+        [109, 815, 165, 841], [104, 829, 553, 902], [1108, 830, 1323, 891],
+        [1012, 847, 1083, 889], [1401, 863, 1462, 894],
+    ]
+    return [
+        {"text": text, "box": box, "score": 0.99}
+        for text, box in zip(texts, boxes)
+    ]
+
+
+def _pp_ocr_v6_aami_split_label_blocks():
+    texts = [
+        "AAMI", "MFG DATE:Nov 27, 2022", "EXP", "DATE: Nov 27, 2023",
+        "P/N:T4MX02300407L", "DWG NO:100-12323-TQFP1 REV A",
+        "CUSTOMER: CASC", "LOT NO:2270992-3",
+        "DESCRIPTION: 100L LQFP MTX 230X230", "7025C (1/2H) ME2",
+        "AG D/S:650.0/6.700", "REMARK:", "Stamped L/F", "OTY:",
+        "5.600 K", "CUSTOMER P/N:", "AAMI", "PASS", "Ref.:2521628-06",
+        "011", "(5)", "PARTIAL",
+    ]
+    boxes = [
+        [200, 720, 281, 748], [358, 714, 714, 744], [822, 712, 883, 737],
+        [890, 708, 1166, 737], [567, 761, 841, 792], [949, 749, 1382, 786],
+        [205, 766, 446, 795], [1185, 801, 1441, 828], [205, 810, 760, 840],
+        [434, 847, 686, 882], [739, 839, 1013, 877], [210, 895, 321, 922],
+        [434, 888, 611, 921], [876, 923, 953, 960], [1008, 925, 1110, 951],
+        [209, 936, 450, 965], [638, 945, 744, 1006], [732, 945, 815, 980],
+        [1253, 945, 1477, 973], [739, 972, 802, 1001], [1339, 982, 1381, 1010],
+        [684, 1096, 1505, 1279],
+    ]
+    return [
+        {"text": text, "box": box, "score": 0.99}
+        for text, box in zip(texts, boxes)
+    ]
+
+
+def _pp_ocr_v6_aami_customer_pn_blocks():
+    texts = [
+        "AAMI", "60014865/001", "BOX", "CUST:XINGHANG/Z",
+        "CUST P/N: QFN64", "GP", "P/N:64311NBDU1QB00-R",
+        "QTY:45.500", "KPD", "AAMIPASS", "LOT: 2511686",
+        "MFG DATE:20250515", "EXP DATE:20260515",
+        "DESC: 64L 311X311 QFN MTX A194FH",
+        "DWG#: 064L198740DCE REV.0", "房", "品房具品房制念养",
+    ]
+    boxes = [
+        [174, 604, 258, 640], [271, 602, 597, 648], [1481, 611, 1570, 647],
+        [186, 656, 543, 695], [673, 664, 941, 698], [1485, 655, 1543, 691],
+        [192, 693, 646, 727], [199, 726, 394, 760], [462, 728, 546, 760],
+        [1167, 722, 1396, 836], [676, 738, 911, 771], [214, 800, 509, 826],
+        [227, 867, 512, 892], [676, 883, 1158, 912], [676, 909, 1057, 936],
+        [0, 1236, 141, 1274], [235, 1241, 453, 1276],
+    ]
+    scores = [
+        0.9999, 0.9999, 0.9991, 0.9994, 0.9848, 0.9999, 0.9986,
+        0.9998, 0.9999, 0.8986, 0.9737, 0.9780, 0.9863, 0.9992,
+        0.9978, 0.4104, 0.3993,
+    ]
+    return [
+        {"text": text, "box": box, "score": score}
+        for text, box, score in zip(texts, boxes, scores)
+    ]
+
+
 class TestNormalizeBox(unittest.TestCase):
     def test_four_numbers(self):
         self.assertEqual(ocr_service._normalize_box([10, 20, 30, 40]), [10, 20, 30, 40])
@@ -20,6 +97,50 @@ class TestNormalizeBox(unittest.TestCase):
     def test_four_points(self):
         box = [[10, 20], [30, 20], [30, 40], [10, 40]]
         self.assertEqual(ocr_service._normalize_box(box), [10, 20, 30, 40])
+
+
+class TestParsePpOcrV6Json(unittest.TestCase):
+    def test_top_level_result_and_polygon_fallback(self):
+        payload = {
+            "ocrResults": [{
+                "prunedResult": {
+                    "rec_texts": ["LOT NO:", "1"],
+                    "rec_scores": [0.99, 0.98],
+                    "rec_polys": [
+                        [[10, 10], [80, 10], [80, 30], [10, 30]],
+                        [[90, 10], [110, 10], [110, 30], [90, 30]],
+                    ],
+                },
+            }],
+            "dataInfo": {"width": 200, "height": 100, "type": "image"},
+        }
+
+        blocks, data_info = ocr_service._parse_ocr_jsonl(json.dumps(payload))
+
+        self.assertEqual(data_info["width"], 200)
+        self.assertEqual([b["text"] for b in blocks], ["LOT NO:", "1"])
+        self.assertEqual(blocks[0]["box"], [10, 10, 80, 30])
+        self.assertEqual(blocks[0]["score"], 0.99)
+
+    def test_wrapped_result(self):
+        payload = {
+            "result": {
+                "ocrResults": [{
+                    "prunedResult": {
+                        "rec_texts": ["QTY:", "18.000", "KPD"],
+                        "rec_boxes": [
+                            [10, 10, 50, 30],
+                            [60, 10, 120, 30],
+                            [130, 10, 170, 30],
+                        ],
+                    },
+                }],
+            },
+        }
+
+        blocks, _ = ocr_service._parse_ocr_jsonl(json.dumps(payload))
+
+        self.assertEqual([b["text"] for b in blocks], ["QTY:", "18.000", "KPD"])
 
 
 class TestDetectColumns(unittest.TestCase):
@@ -105,6 +226,57 @@ class TestExtractTableCells(unittest.TestCase):
 
 
 class TestParseOcrMarkdownSpatial(unittest.TestCase):
+    def test_pp_ocr_v6_aami_multiregion_label(self):
+        blocks = _pp_ocr_v6_aami_blocks()
+        raw_text = "\n".join(ocr_service._merge_blocks_by_coords(blocks))
+        result = ocr_service.parse_ocr_markdown(raw_text, text_blocks=blocks)
+        result["manufacturer"] = ocr_service._resolve_manufacturer(
+            raw_text,
+            result["manufacturer"],
+        )
+        result["spec"] = ocr_service._resolve_aami_spec(raw_text, text_blocks=blocks)
+
+        self.assertEqual(result["manufacturer"], "AAMI")
+        self.assertEqual(result["spec"], "S0T223-080180")
+        self.assertEqual(result["batch_no"], "1")
+        self.assertEqual(result["quantity"], "18")
+        self.assertEqual(result["production_date"], "2023-04-14")
+        self.assertEqual(result["expiry_date"], "2024-04-13")
+
+    def test_pp_ocr_v6_aami_split_exp_and_ocr_qty_typo(self):
+        blocks = _pp_ocr_v6_aami_split_label_blocks()
+        raw_text = "\n".join(ocr_service._merge_blocks_by_coords(blocks))
+        result = ocr_service.parse_ocr_markdown(raw_text, text_blocks=blocks)
+        result["manufacturer"] = ocr_service._resolve_manufacturer(
+            raw_text,
+            result["manufacturer"],
+        )
+        result["spec"] = ocr_service._resolve_aami_spec(raw_text, text_blocks=blocks)
+
+        self.assertEqual(result["manufacturer"], "AAMI")
+        self.assertEqual(result["spec"], "100L LQFP MTX 230X230")
+        self.assertEqual(result["batch_no"], "2270992-3")
+        self.assertEqual(result["quantity"], "5.6")
+        self.assertEqual(result["production_date"], "2022-11-27")
+        self.assertEqual(result["expiry_date"], "2023-11-27")
+
+    def test_pp_ocr_v6_aami_customer_pn_and_compact_dates(self):
+        blocks = _pp_ocr_v6_aami_customer_pn_blocks()
+        raw_text = "\n".join(ocr_service._merge_blocks_by_coords(blocks))
+        result = ocr_service.parse_ocr_markdown(raw_text, text_blocks=blocks)
+        result["manufacturer"] = ocr_service._resolve_manufacturer(
+            raw_text,
+            result["manufacturer"],
+        )
+        result["spec"] = ocr_service._resolve_aami_spec(raw_text, text_blocks=blocks)
+
+        self.assertEqual(result["manufacturer"], "AAMI")
+        self.assertEqual(result["spec"], "QFN64")
+        self.assertEqual(result["batch_no"], "2511686")
+        self.assertEqual(result["quantity"], "45.5")
+        self.assertEqual(result["production_date"], "2025-05-15")
+        self.assertEqual(result["expiry_date"], "2026-05-15")
+
     def test_spatial_overrides_regex(self):
         # 纯文本正则会把 EXP 2025-04-13 误判，空间邻近能正确配对
         text = "SUPPLIER: 厦门捷昕\nLot No: HYE230413-11\nQ'ty: 46.368K\nPD: 2023-04-13\nEXP: 2025-04-13"

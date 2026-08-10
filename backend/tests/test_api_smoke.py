@@ -10,6 +10,8 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-must-be-at-least-32-bytes-long")
+os.environ.setdefault("LOGIN_PASSWORD", "test-login-password")
 
 # 必须在 import main / 触发 lifespan 之前覆盖 DB_PATH，使 init_db 建在临时库
 _tmp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -20,6 +22,7 @@ db.DB_PATH = _tmp_db.name
 
 from fastapi.testclient import TestClient
 import main  # noqa: E402  创建 app 实例
+import auth_service  # noqa: E402
 
 _AUDIT_USER_COUNT = 0  # 占位，避免 lint
 
@@ -40,6 +43,8 @@ class TestApiFlow(unittest.TestCase):
     def setUpClass(cls):
         cls._client_cm = TestClient(main.app)
         cls.client = cls._client_cm.__enter__()  # 触发 lifespan → init_db
+        token = auth_service.create_jwt("test-user", "测试用户")
+        cls.client.headers["Authorization"] = f"Bearer {token}"
 
     @classmethod
     def tearDownClass(cls):
@@ -130,6 +135,20 @@ class TestApiFlow(unittest.TestCase):
         # 数量未被改动
         item = self.client.get(f"/api/inventory/{inv_id}").json()
         self.assertEqual(db.qty_to_num(item["quantity"]), 2.0)
+
+    def test_8_business_routes_require_authentication(self):
+        self.assertEqual(
+            self.client.get("/api/inventory", headers={"Authorization": ""}).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.client.post(
+                "/api/stock-in",
+                headers={"Authorization": ""},
+                json=_stockin_payload(batch_no="UNAUTH"),
+            ).status_code,
+            401,
+        )
 
 
 if __name__ == "__main__":

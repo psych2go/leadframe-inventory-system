@@ -34,7 +34,7 @@
     </van-cell-group>
 
     <div class="actions">
-      <van-button type="primary" block @click="$router.push(`/stock-out/${item.id}`)">出库</van-button>
+      <van-button type="danger" block size="large" @click="$router.push(`/stock-out/${item.id}`)">出库</van-button>
     </div>
   </div>
 </template>

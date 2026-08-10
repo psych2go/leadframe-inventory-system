@@ -254,28 +254,30 @@ async function doExport() {
 
 <style scoped>
 .inventory-page {
-  background: #f7f8fa;
+  background: var(--lf-bg);
   min-height: 100vh;
-  padding-bottom: 20px;
+  padding-bottom: 28px;
 }
 .export-nav-btn {
-  font-size: 13px;
-  padding: 0 12px;
-  height: 32px;
-  border-radius: 16px;
+  font-size: 12px;
+  padding: 0 10px;
+  height: 30px;
+  border-radius: 6px;
 }
-.search-bar { padding: 8px 12px; }
+.search-bar { padding: 12px 12px 6px; }
 .search-bar :deep(.van-search) {
   padding: 0;
-  background: white;
+  background: transparent;
 }
 /* 搜索框 placeholder 垂直居中：
    content/field/body 三层固定 34px + flex align-items:center，
    input 本身高度自适应由父容器撑开居中，并清除移动端 input 默认内边距 */
 .search-bar :deep(.van-search__content) {
-  height: 34px;
+  height: 40px;
   padding: 0 12px;
-  border-radius: 8px;
+  border: 1px solid var(--lf-border);
+  border-radius: 6px;
+  background: white;
   display: flex;
   align-items: center;
 }
@@ -314,38 +316,43 @@ async function doExport() {
   font-size: 14px;
   vertical-align: middle;
 }
-.filter-bar { padding: 4px 12px 8px; }
+.filter-bar { padding: 6px 12px 10px; }
 .filter-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .filter-chip {
   display: flex; align-items: center; gap: 4px;
-  padding: 5px 10px; border-radius: 16px;
-  border: 1px solid #e0e0e0; background: #fff;
+  min-height: 34px;
+  padding: 5px 9px; border-radius: 6px;
+  border: 1px solid var(--lf-border); background: #fff;
   font-size: 12px; cursor: pointer; transition: all 0.15s;
   flex: 1; min-width: 0; justify-content: center;
 }
 .filter-chip:active { opacity: 0.7; }
-.filter-chip.active { border-color: #1989fa; background: #f0f9ff; }
-.chip-label { color: #999; white-space: nowrap; }
-.chip-val { color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80px; }
-.filter-chip.active .chip-val { color: #1989fa; font-weight: 500; }
+.filter-chip.active { border-color: var(--lf-primary); background: #edf7f6; }
+.chip-label { color: var(--lf-text-muted); white-space: nowrap; }
+.chip-val { color: var(--lf-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80px; }
+.filter-chip.active .chip-val { color: var(--lf-primary); font-weight: 650; }
 .filter-bar-bottom { display: flex; justify-content: flex-end; padding-top: 6px; }
-.filter-reset-link { font-size: 12px; color: #ee0a24; cursor: pointer; }
+.filter-reset-link { font-size: 12px; color: var(--lf-out); cursor: pointer; }
 .inventory-page :deep(.van-cell) {
-  margin: 8px 12px; border-radius: 8px; background: white; padding: 12px 16px;
+  margin: 0;
+  min-height: 76px;
+  border-radius: 8px;
+  border: 1px solid var(--lf-border);
+  background: white;
+  padding: 12px 14px;
 }
 .inventory-page :deep(.van-cell__value) {
   flex: none;
   text-align: right;
 }
-.inventory-page :deep(.van-swipe-cell) { margin: 0 12px; }
+.inventory-page :deep(.van-swipe-cell) { margin: 0 12px 8px; }
 .inventory-page :deep(.van-swipe-cell__right) { border-radius: 8px; }
 .delete-btn { border-radius: 0 8px 8px 0; }
-.inventory-page :deep(.van-nav-bar) { background: white; }
 .item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 80px; }
 .item-tags { display: flex; gap: 4px; }
-.qty { font-size: 16px; font-weight: bold; color: #1989fa; }
-.qty-alert { font-size: 16px; font-weight: bold; color: #ee0a24; }
+.qty { font-family: var(--lf-data-font); font-size: 16px; font-weight: 750; color: var(--lf-primary); }
+.qty-alert { font-family: var(--lf-data-font); font-size: 16px; font-weight: 750; color: var(--lf-out); }
 .batch-tag { flex-shrink: 0; }
-.inventory-page :deep(.van-list) { margin-top: 8px; }
+.inventory-page :deep(.van-list) { margin-top: 4px; }
 .inventory-page :deep(.van-empty) { padding: 60px 0; }
 </style>

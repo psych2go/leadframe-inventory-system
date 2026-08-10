@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-引线框架（Leadframe）库存管理系统。移动端 H5 应用，嵌入企业微信使用。核心流程：拍照 → PaddleOCR PP-OCRv5 云端 API 识别标签 → 结构化数据入库。以封装形式+规格+镀银区域+表面处理+厂家+批号为复合唯一标识，相同则数量累加。
+引线框架（Leadframe）库存管理系统。移动端 H5 应用，嵌入企业微信使用。核心流程：拍照 → PaddleOCR PP-OCRv6 云端 API 识别标签 → 结构化数据入库。以封装形式+规格+镀银区域+表面处理+厂家+批号为复合唯一标识，相同则数量累加。
 
 ## 技术栈
 
@@ -27,7 +27,7 @@
 |------|------|
 | `backend/main.py` | FastAPI 入口，lifespan 建表，CORS，路由挂载（prefix=/api） |
 | `backend/database.py` | SQLite 连接管理，inventory/stock_log/audit_log 三张表的建表/CRUD/审计 |
-| `backend/ocr_service.py` | PaddleOCR PP-OCRv5 云端 API 调用（multipart 上传图片→提交任务→轮询→解析 JSONL），从文本中提取结构化字段 |
+| `backend/ocr_service.py` | PaddleOCR PP-OCRv6 云端 API 调用（multipart 上传图片→提交任务→轮询→解析 JSONL），从文本中提取结构化字段 |
 | `backend/routers/ocr.py` | POST /api/ocr，接收图片上传（限制 20MB），保存文件后调用 OCR |
 | `backend/routers/inventory.py` | 库存 CRUD、分组查询、入库、出库、记录查询与撤销、审计日志查询、上传图片静态服务、Excel 导出 |
 | `backend/auth_service.py` | JWT 签发/验证，企微 API 调用（access_token + jsapi_ticket + 用户身份），缓存 |
@@ -81,7 +81,7 @@ SQLite，文件 `backend/inventory.db`。
 ## OCR 流程
 
 1. 前端拍照/选图（企微内用 JS-SDK `wx.chooseImage`，非企微用 HTML input 或 Viewfinder 组件）→ 自动压缩图片（由 Viewfinder/CropModal 组件完成：最大宽度 1000px，JPEG 质量 85%）→ POST /api/ocr（multipart/form-data，限制 20MB）
-2. 后端保存图片到 uploads/ → 调用 PaddleOCR PP-OCRv5 异步 API（提交任务 → 轮询 → 取 JSONL 结果）
+2. 后端保存图片到 uploads/ → 调用 PaddleOCR PP-OCRv6 异步 API（提交任务 → 轮询 → 取 JSONL 结果）
 3. API 返回 JSONL 格式的 OCR 文本结果
 4. `parse_ocr_markdown()` 用正则从文本中提取字段（厂家、规格、批号、数量、日期等）
 5. 厂家名归一化（`_resolve_manufacturer`），AAMI 厂家专用规格提取（`_resolve_aami_spec`）
@@ -104,16 +104,15 @@ OCR 凭据通过 `backend/.env` 文件注入（已 gitignore）：`PADDLEOCR_API
 | `WECORP_AGENT_ID` | 自建应用 AgentID | `1000002` |
 | `APP_BASE_URL` | 应用外网地址（含路径前缀） | `https://inv.example.com/inventory` |
 | `JWT_SECRET` | JWT 签名密钥（必须设置） | 随机字符串 |
-| `AUTH_REQUIRED` | 是否强制登录 | `true` / `false` |
 | `LOGIN_PASSWORD` | 共享登录密码（设置后启用密码登录模式） | 自定义密码 |
 
 系统支持两种认证模式，按配置自动选择：
-- **密码登录**：设置 `LOGIN_PASSWORD` 后启用。访问页面时跳转登录页，输入共享密码后签发 JWT（30 天有效）。适合小团队使用。
-- **企微 OAuth**：配置 `WECORP_ID` + `WECORP_SECRET` + `AUTH_REQUIRED=true` 后启用。企微内自动授权，非企微浏览器提示在企微中打开。
+- **密码登录**：设置 `LOGIN_PASSWORD` 后启用。访问页面时跳转登录页，输入共享密码后签发 JWT（24 小时有效）。
+- **企微 OAuth**：配置 `WECORP_ID` + `WECORP_SECRET` + `APP_BASE_URL` 后启用，使用签名 state 防止回调伪造。
 
 两种模式可独立使用，也可同时配置（密码登录优先）。
 
-不配置企微变量时系统正常运行（无登录拦截）。`AUTH_REQUIRED=true` 时强制登录。
+所有库存、OCR、上传、导出和审计接口始终强制登录。`LOGIN_PASSWORD` 与企业微信认证必须至少配置一种，否则后端拒绝启动。
 
 ### JS-SDK 拍照
 
@@ -181,22 +180,21 @@ backend/venv/bin/pip install -r backend/requirements.txt
 项目根目录 `.env`（认证 + JWT）：
 
 ```env
-JWT_SECRET=随机安全字符串
+JWT_SECRET=至少32字节的随机字符串
 LOGIN_PASSWORD=你的登录密码
 # 企微 OAuth（可选）
 # WECORP_ID=ww1234567890
 # WECORP_SECRET=your-secret
 # WECORP_AGENT_ID=1000002
 # APP_BASE_URL=https://你的域名/inventory
-# AUTH_REQUIRED=true
 ```
 
 `backend/.env`（OCR 凭据，已 gitignore）：
 
 ```env
-PADDLEOCR_API_URL=https://your-api-url/layout-parsing
+PADDLEOCR_API_URL=https://paddleocr.aistudio-app.com/api/v2/ocr/jobs
 PADDLEOCR_TOKEN=your-token
-PADDLEOCR_MODEL=PP-OCRv5
+PADDLEOCR_MODEL=PP-OCRv6
 ```
 
 **4. 构建前端**
@@ -321,7 +319,7 @@ npm run dev
 | GET | /api/auth/wecom/url | 生成企微 OAuth 授权链接 |
 | GET | /api/auth/wecom/callback | 企微 OAuth 回调，code→JWT→重定向 |
 | POST | /api/auth/wecom/login | 前端用 code 换 JWT |
-| POST | /api/auth/login | 密码登录（验证 LOGIN_PASSWORD，签发 30 天 JWT） |
+| POST | /api/auth/login | 密码登录（验证 LOGIN_PASSWORD，签发 24 小时 JWT） |
 | GET | /api/auth/wecom/jsapi-config | JS-SDK 签名配置（?url=） |
 | GET | /api/auth/me | 获取当前登录用户信息 |
 
@@ -347,8 +345,8 @@ npm run dev
 - PaddleOCR API 是云端服务，需要网络连通，首次调用可能有数秒延迟
 - H5 拍照需要 HTTPS 环境（生产环境通过 certbot 配置 SSL）
 - 企微内使用 JS-SDK 拍照，非企微环境降级为 HTML input
-- JWT_SECRET 必须设置，未设置时无法签发 Token
-- CORS 默认 `*`（开发用），生产环境通过 Nginx 同源代理，可设 `CORS_ORIGINS` 收紧
+- JWT_SECRET 必须至少 32 字节，且必须配置共享密码或企业微信认证
+- CORS 默认仅允许本机 Vite 开发地址，生产环境通过 `CORS_ORIGINS` 明确配置
 - 出库操作使用 `BEGIN IMMEDIATE` 防止并发超额出库
 - 编辑库存时如果与已有记录冲突会自动合并（数量累加，stock_log 迁移，当前记录删除）
 - 撤销出入库记录（DELETE /api/stock-logs/:id）会反向调整库存数量

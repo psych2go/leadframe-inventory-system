@@ -5,7 +5,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from urllib.parse import urlsplit
 
 # 加载项目根目录 .env 文件（PM2 env_file 不可靠时作为兜底）
 _env_file = Path(__file__).parent.parent / ".env"
@@ -38,6 +40,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app):
+    auth_service.validate_auth_configuration()
     init_db()
     logging.info("Database initialized")
     yield
@@ -55,8 +58,16 @@ async def import_error_handler(request: Request, exc: ImportError):
     logging.error("Missing dependency: %s", exc)
     return JSONResponse(status_code=500, content={"detail": f"服务配置错误: 缺少依赖 {exc}"})
 
-# CORS: 生产环境通过 Nginx 同源代理，不走 CORS；开发环境允许 localhost
-cors_origins = os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
+# CORS: 生产环境通过 Nginx 同源代理；开发环境仅允许本机 Vite。
+cors_origins = (
+    [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
+    or [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ]
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -64,6 +75,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app_base_url = os.getenv("APP_BASE_URL", "")
+default_hosts = ["localhost", "127.0.0.1", "testserver"]
+if app_base_url:
+    configured_host = urlsplit(app_base_url).hostname
+    if configured_host:
+        default_hosts.append(configured_host)
+allowed_hosts_value = os.getenv("ALLOWED_HOSTS", "") or ",".join(default_hosts)
+allowed_hosts = [
+    host.strip()
+    for host in allowed_hosts_value.split(",")
+    if host.strip()
+]
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 app.include_router(ocr.router, prefix="/api", tags=["OCR"])
 app.include_router(inventory.router, prefix="/api", tags=["库存管理"])
@@ -80,6 +105,6 @@ def config():
     """返回前端需要的配置，让前端知道是否启用企微认证"""
     return {
         "wecom_configured": auth_service.is_wecom_configured(),
-        "auth_required": os.getenv("AUTH_REQUIRED", "false").lower() == "true",
+        "auth_required": True,
         "password_login": bool(os.getenv("LOGIN_PASSWORD", "")),
     }

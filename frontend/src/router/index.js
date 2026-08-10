@@ -91,6 +91,7 @@ router.beforeEach(async (to) => {
 
   // 2. 处理企微授权回调中的 code 参数
   const code = query.get('code')
+  const state = query.get('state')
   if (code && isWecomBrowser()) {
     query.delete('code')
     query.delete('state')
@@ -99,7 +100,7 @@ router.beforeEach(async (to) => {
 
     try {
       const { wecomLogin } = await import('../api')
-      const res = await wecomLogin(code)
+      const res = await wecomLogin(code, state || '')
       localStorage.setItem('token', res.token)
       localStorage.setItem('user', JSON.stringify({ user_id: res.user_id, name: res.name }))
       window.history.replaceState({}, '', nextPath)

@@ -4,7 +4,7 @@
 
 ## 功能
 
-- **拍照入库** — 手机拍照上传，PaddleOCR-VL-1.5 自动识别标签文字，提取封装形式、规格、镀银区域、表面处理、生产厂家、批号、数量、生产日期、过期日期，确认后入库
+- **拍照入库** — 手机拍照上传，PaddleOCR PP-OCRv6 自动识别标签文字，提取封装形式、规格、镀银区域、表面处理、生产厂家、批号、数量、生产日期、过期日期，确认后入库
 - **拍照出库** — 拍照识别批号后自动匹配库存记录，选择后出库
 - **手动入库** — 直接填写表单入库
 - **出库操作** — 搜索库存，输入出库数量，库存自动扣减
@@ -32,7 +32,7 @@
 |---|------|
 | 前端 | Vue 3 + Vant 4（移动端 UI 库），base path `/inventory/` |
 | 后端 | Python FastAPI，路由前缀 `/api` |
-| OCR | PaddleOCR-VL-1.5 云端 API |
+| OCR | PaddleOCR PP-OCRv6 云端 API |
 | 数据库 | SQLite（WAL 模式） |
 | 部署 | PM2 + Nginx（生产），Docker Compose（备选） |
 | 认证 | JWT + 密码登录 / 企业微信 OAuth |
@@ -151,21 +151,23 @@ backend/venv/bin/pip install -r backend/requirements.txt
 
 ```bash
 cat > /opt/leadframe-inventory/.env << 'EOF'
-JWT_SECRET=随机安全字符串
+JWT_SECRET=至少32字节的随机字符串
 LOGIN_PASSWORD=你的登录密码
 EOF
 ```
 
-- `LOGIN_PASSWORD`：设置后启用密码登录保护，访问页面需输入密码（30 天内免登录）
-- 企微 OAuth 配置（可选）：`WECORP_ID`、`WECORP_SECRET`、`WECORP_AGENT_ID`、`APP_BASE_URL`、`AUTH_REQUIRED=true`
+- `JWT_SECRET`：必须至少 32 字节，可用 `openssl rand -hex 32` 生成
+- `LOGIN_PASSWORD`：共享密码登录，JWT 有效期 24 小时
+- `LOGIN_PASSWORD` 与企业微信认证必须至少配置一种
+- 企微 OAuth 配置（可选）：`WECORP_ID`、`WECORP_SECRET`、`WECORP_AGENT_ID`、`APP_BASE_URL`
 
 **`backend/.env`**（OCR 凭据，已 gitignore）：
 
 ```bash
 cat > /opt/leadframe-inventory/backend/.env << 'EOF'
-PADDLEOCR_API_URL=https://your-api-url/layout-parsing
+PADDLEOCR_API_URL=https://paddleocr.aistudio-app.com/api/v2/ocr/jobs
 PADDLEOCR_TOKEN=your-token
-PADDLEOCR_MODEL=PP-OCRv5
+PADDLEOCR_MODEL=PP-OCRv6
 EOF
 ```
 
@@ -273,16 +275,16 @@ cd ..
 项目根目录 `.env`：
 
 ```env
-JWT_SECRET=随机安全字符串
+JWT_SECRET=至少32字节的随机字符串
 LOGIN_PASSWORD=你的登录密码
 ```
 
 `backend/.env`（OCR 凭据）：
 
 ```env
-PADDLEOCR_API_URL=https://your-api-url/layout-parsing
+PADDLEOCR_API_URL=https://paddleocr.aistudio-app.com/api/v2/ocr/jobs
 PADDLEOCR_TOKEN=your-token
-PADDLEOCR_MODEL=PP-OCRv5
+PADDLEOCR_MODEL=PP-OCRv6
 ```
 
 #### 3. 配置 SSL 证书
@@ -328,13 +330,14 @@ npm run dev
 
 ## 安全说明
 
-- 图片上传前自动压缩（最大 1600px，JPEG 80%），上传限制 20MB，仅接受图片类型
+- 后端验证真实图片内容并统一转码为最大 2000px、JPEG 90%，上传限制 20MB
 - 上传图片路径做了路径遍历防护
+- 除健康检查、配置和登录接口外，所有业务 API 均强制 JWT 鉴权
 - 出库操作使用数据库锁（BEGIN IMMEDIATE）防止并发超额
 - 编辑冲突时自动合并（数量累加），不会产生重复记录
 - 撤销出入库记录时校验库存不会为负
-- JWT Secret 必须配置，未设置时无法签发 Token
-- 支持 `LOGIN_PASSWORD` 环境变量启用密码登录保护（30 天免登录）
+- JWT Secret 必须至少 32 字节，否则后端拒绝启动
+- 支持共享密码或企业微信登录，登录 Token 有效期 24 小时
 - 敏感凭据（`.env`、`backend/.env`、`certs/`）已加入 `.gitignore`
 - 所有数据变更自动记录审计日志（操作人、时间、IP、变更内容）
 - 支持 GitHub Actions 自动部署（`.github/workflows/deploy.yml`）

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 JWT_SECRET = os.getenv("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24
+MIN_JWT_SECRET_BYTES = 32
 
 # 企微配置
 WECORP_ID = os.getenv("WECORP_ID", "")
@@ -31,10 +32,19 @@ def is_wecom_configured() -> bool:
     return bool(WECORP_ID and WECORP_SECRET)
 
 
+def validate_auth_configuration() -> None:
+    """拒绝以不可用或可伪造的认证配置启动服务。"""
+    if len(JWT_SECRET.encode("utf-8")) < MIN_JWT_SECRET_BYTES:
+        raise RuntimeError(f"JWT_SECRET 必须至少 {MIN_JWT_SECRET_BYTES} 字节")
+    if not (os.getenv("LOGIN_PASSWORD", "") or is_wecom_configured()):
+        raise RuntimeError("必须配置 LOGIN_PASSWORD 或企业微信认证")
+
+
 def create_jwt(user_id: str, name: str = "") -> str:
-    if not JWT_SECRET:
-        raise ValueError("JWT_SECRET 未配置，无法签发 Token")
+    if len(JWT_SECRET.encode("utf-8")) < MIN_JWT_SECRET_BYTES:
+        raise ValueError(f"JWT_SECRET 必须至少 {MIN_JWT_SECRET_BYTES} 字节")
     payload = {
+        "purpose": "access",
         "user_id": user_id,
         "name": name,
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS),
@@ -44,8 +54,15 @@ def create_jwt(user_id: str, name: str = "") -> str:
 
 
 def decode_jwt(token: str) -> dict | None:
+    if len(JWT_SECRET.encode("utf-8")) < MIN_JWT_SECRET_BYTES:
+        return None
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("purpose") != "access":
+            return None
+        if not isinstance(payload.get("user_id"), str) or not payload["user_id"]:
+            return None
+        return payload
     except jwt.ExpiredSignatureError:
         return None
     except jwt.InvalidTokenError:
@@ -152,7 +169,8 @@ def generate_jsapi_signature(url: str) -> dict | None:
 
     # 签名算法：SHA1(sort(jsapi_ticket, noncestr, timestamp, url))
     raw = f"jsapi_ticket={ticket}&noncestr={nonce_str}&timestamp={timestamp}&url={url}"
-    signature = hashlib.sha1(raw.encode()).hexdigest()
+    # WeCom JS-SDK requires SHA-1 for this protocol signature.
+    signature = hashlib.sha1(raw.encode()).hexdigest()  # nosec B324
 
     return {
         "appId": WECORP_ID,

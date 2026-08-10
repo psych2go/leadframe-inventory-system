@@ -12,6 +12,27 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import ocr_service
 
 
+class TestOcrConfiguration(unittest.TestCase):
+    def test_default_api_url_is_v2_ocr_jobs(self):
+        self.assertEqual(
+            ocr_service.DEFAULT_API_URL,
+            "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs",
+        )
+
+    def test_default_model_is_pp_ocr_v6(self):
+        self.assertEqual(ocr_service.DEFAULT_MODEL, "PP-OCRv6")
+
+    def test_optional_payload_matches_pp_ocr_v6_api(self):
+        self.assertEqual(
+            ocr_service._build_optional_payload(),
+            {
+                "useDocOrientationClassify": False,
+                "useDocUnwarping": False,
+                "useTextlineOrientation": False,
+            },
+        )
+
+
 class TestNormalizeDate(unittest.TestCase):
     def test_dd_mon_yyyy(self):
         self.assertEqual(ocr_service._normalize_date("17-Jun-2022"), "2022-06-17")
@@ -79,6 +100,10 @@ EXP: 2025-04-13
         r = ocr_service.parse_ocr_markdown(md)
         self.assertEqual(r["quantity"], "46.368")
 
+    def test_quantity_q_misread_as_o(self):
+        r = ocr_service.parse_ocr_markdown("OTY: 5.600 K\n")
+        self.assertEqual(r["quantity"], "5.6")
+
     def test_lot_no_concatenated(self):
         # 关键词与值直接相连（无分隔符）
         md = "LOTNOHYE230413-11\n"
@@ -111,6 +136,37 @@ class TestResolveManufacturer(unittest.TestCase):
     def test_empty_when_nothing_found(self):
         r = ocr_service._resolve_manufacturer("", "")
         self.assertEqual(r, "")
+
+
+class TestResolveAamiSpec(unittest.TestCase):
+    def test_exact_pn_with_sot_marker(self):
+        text = "P/N: S0T223-080180\nDESCRIPTION: 80X180 SOT A194FH"
+        self.assertEqual(ocr_service._resolve_aami_spec(text), "S0T223-080180")
+
+    def test_description_does_not_match_desc_prefix(self):
+        text = "DESCRIPTION: 80X180 SOT A194FH"
+        self.assertEqual(
+            ocr_service._resolve_aami_spec(text),
+            "80X180 SOT A194FH",
+        )
+
+    def test_customer_pn_has_highest_priority(self):
+        text = "CUST P/N: SOP-16L-300mil\nP/N: S0T223-080180"
+        self.assertEqual(
+            ocr_service._resolve_aami_spec(text),
+            "SOP-16L-300mil",
+        )
+
+    def test_customer_pn_status_stamp_is_ignored(self):
+        text = (
+            "CUSTOMER P/N: AAMI PASS\n"
+            "P/N: T4MX02300407L\n"
+            "DESCRIPTION: 100L LQFP MTX 230X230"
+        )
+        self.assertEqual(
+            ocr_service._resolve_aami_spec(text),
+            "100L LQFP MTX 230X230",
+        )
 
 
 if __name__ == "__main__":

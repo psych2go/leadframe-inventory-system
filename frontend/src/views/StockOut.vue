@@ -60,7 +60,7 @@
       </van-cell-group>
 
       <div class="submit-bar">
-        <van-button type="primary" block @click="doStockOut" :loading="submitting">确认出库</van-button>
+        <van-button type="danger" block size="large" @click="doStockOut" :loading="submitting">确认出库</van-button>
         <van-button block @click="selectedBatch = null" style="margin-top: 8px;">重新选择</van-button>
       </div>
     </div>
@@ -152,13 +152,31 @@ async function doStockOut() {
 </script>
 
 <style scoped>
-.search-area { padding: 0; }
-.group-section { margin: 0; }
+.search-area { padding: 10px 12px 24px; }
+.search-area :deep(.van-search) { padding: 0 0 10px; background: transparent; }
+.search-area :deep(.van-search__content) {
+  min-height: 40px;
+  border: 1px solid var(--lf-border);
+  border-radius: 6px;
+  background: white;
+}
+.group-section { margin-bottom: 8px; }
+.group-section > :deep(.van-cell) {
+  border: 1px solid var(--lf-border);
+  border-radius: 8px;
+}
 .group-right { display: flex; align-items: center; gap: 6px; }
-.group-qty { font-size: 14px; font-weight: 600; color: #1989fa; }
-.batch-list { background: #f7f8fa; }
+.group-qty { font-family: var(--lf-data-font); font-size: 14px; font-weight: 700; color: var(--lf-primary); }
+.batch-list {
+  margin-top: -1px;
+  overflow: hidden;
+  border: 1px solid var(--lf-border);
+  border-radius: 0 0 8px 8px;
+  background: #f8fafb;
+}
 .batch-list :deep(.van-cell) { padding-left: 24px; }
-.batch-qty { font-size: 14px; font-weight: 500; color: #333; }
-.out-form { margin-top: 16px; }
-.submit-bar { padding: 16px; }
+.batch-qty { font-family: var(--lf-data-font); font-size: 14px; font-weight: 650; color: var(--lf-text); }
+.out-form { padding-top: 4px; }
+.out-form :deep(.van-cell-group) { margin: 12px; }
+.submit-bar { padding: 12px; }
 </style>

@@ -39,9 +39,11 @@ mkdir -p "$SCRIPT_DIR/logs"
 echo ""
 echo "启动后端服务..."
 cd "$BACKEND_DIR"
-# 从 backend/.env 加载 OCR 凭据（文件已 gitignore）
-set -a && [ -f "$BACKEND_DIR/.env" ] && source "$BACKEND_DIR/.env" && set +a
-export AUTH_REQUIRED=false
+# 加载根目录认证配置和 backend/.env OCR 凭据（文件均已 gitignore）
+set -a
+[ -f "$SCRIPT_DIR/.env" ] && source "$SCRIPT_DIR/.env"
+[ -f "$BACKEND_DIR/.env" ] && source "$BACKEND_DIR/.env"
+set +a
 nohup ./venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload > "$SCRIPT_DIR/logs/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo "后端 PID: $BACKEND_PID"

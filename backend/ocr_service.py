@@ -31,9 +31,20 @@ def _ocr_env(key: str, default: str = "") -> str:
     return os.environ.get(f"PADDLEOCR_{key}") or os.environ.get(f"PADDOLEOCR_{key}", default)
 
 
-API_URL = _ocr_env("API_URL")
+DEFAULT_API_URL = "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
+API_URL = _ocr_env("API_URL", DEFAULT_API_URL)
 TOKEN = _ocr_env("TOKEN")
-MODEL = _ocr_env("MODEL", "PP-OCRv5")
+DEFAULT_MODEL = "PP-OCRv6"
+MODEL = _ocr_env("MODEL", DEFAULT_MODEL)
+
+
+def _build_optional_payload() -> dict:
+    """返回 PP-OCRv6 云端任务接口支持的可选参数。"""
+    return {
+        "useDocOrientationClassify": False,
+        "useDocUnwarping": False,
+        "useTextlineOrientation": False,
+    }
 
 # 复用连接池，轮询场景需要较长超时
 _http_client = httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0))
@@ -82,45 +93,83 @@ def _resolve_manufacturer(raw_text: str, extracted: str) -> str:
     return ""
 
 
-def _resolve_aami_spec(raw_text: str) -> str:
-    """AAMI 厂家专用规格提取规则"""
+def _is_exact_label(text: str, keyword: str) -> bool:
+    """判断文本块是否只包含指定标签及可选标点。"""
+    return re.fullmatch(
+        rf"\s*{re.escape(keyword)}\.?\s*[:：]?\s*",
+        text,
+        re.IGNORECASE,
+    ) is not None
+
+
+def _starts_with_label(text: str, keyword: str) -> bool:
+    """判断文本块是否以指定标签开头，标签后允许直接跟值。"""
+    return re.match(
+        rf"^\s*{re.escape(keyword)}\.?\s*(?:[:：]|\s|$)",
+        text,
+        re.IGNORECASE,
+    ) is not None
+
+
+def _looks_like_part_number(value: str) -> bool:
+    """过滤盖章/状态文字，只接受具有数字特征的料号候选。"""
+    upper = value.upper()
+    if not re.search(r"\d", upper):
+        return False
+    if re.search(r"\b(?:PASS|PARTIAL|REMARK|QTY|OTY|REF)\b", upper):
+        return False
+    return True
+
+
+def _resolve_aami_spec(raw_text: str, text_blocks=None) -> str:
+    """AAMI 厂家专用规格提取规则。
+
+    优先使用坐标区分独立的 P/N 标签与 AAMI P/N，避免多栏文本拼接后关键词串线。
+    """
     clean_text = re.sub(r"[#|`]", " ", raw_text)
 
+    blocks = [b for b in (text_blocks or []) if b.get("box") is not None]
+
+    def extract_from_blocks(keywords):
+        for keyword in sorted(keywords, key=len, reverse=True):
+            for block in blocks:
+                if not _starts_with_label(block["text"], keyword):
+                    continue
+                value, _ = _find_value_for_label(block, blocks, field="spec", keyword=keyword)
+                if value:
+                    return value
+        return ""
+
     def extract(keywords):
-        for keyword in keywords:
-            esc = re.escape(keyword)
-            pattern = rf"\b{esc}\.?\s*[:：]\s*(.+?)(?:\n|$)"
+        for keyword in sorted(keywords, key=len, reverse=True):
+            pattern = (
+                rf"(?:^|\n)\s*{re.escape(keyword)}\.?\s*[:：]\s*"
+                rf"(.+?)(?:\n|$)"
+            )
             match = re.search(pattern, clean_text, re.IGNORECASE)
             if match:
                 val = match.group(1).strip().lstrip(":：")
-                sub = re.match(r"(.+?)\s+\w+\s*[:：]", val)
-                if sub:
-                    return sub.group(1).strip()
-                return val
-            pattern = rf"\b{esc}\s+(.+?)(?:\n|$)"
-            match = re.search(pattern, clean_text, re.IGNORECASE)
-            if match:
-                return match.group(1).strip()
-            # 兜底：关键词与值直接相连无分隔符
-            pattern = rf"(?<!\w){esc}([A-Z0-9].*?)(?:\n|$)"
-            match = re.search(pattern, clean_text, re.IGNORECASE)
-            if match:
-                return match.group(1).strip()
+                return _truncate_at_next_label(val, "spec")
         return ""
 
     # 优先级1: CUSTP/N 或 CUST P/N 或 CUSTOMER P/N
-    cust_pn = extract(["CUSTP/N", "CUST P/N", "CUSTOMER P/N"])
-    if cust_pn:
-        return cust_pn
+    cust_keywords = ["CUSTP/N", "CUST P/N", "CUSTOMER P/N"]
+    for cust_pn in (extract_from_blocks(cust_keywords), extract(cust_keywords)):
+        if cust_pn and _looks_like_part_number(cust_pn):
+            return cust_pn
 
     # 优先级2: P/N 包含封装类型关键词则用 P/N，否则用 DESC
-    pn = extract(["P/N"])
-    desc = extract(["DESC", "DESCRIPTION"])
+    pn = extract_from_blocks(["P/N"]) or extract(["P/N"])
+    desc = (
+        extract_from_blocks(["DESCRIPTION", "DESC"])
+        or extract(["DESCRIPTION", "DESC"])
+    )
 
-    if pn and any(kw in pn.upper() for kw in ["SOP", "QFP", "DIP", "FN"]):
+    package_markers = ["SOP", "S0P", "QFP", "DIP", "DFN", "QFN", "SOT", "S0T"]
+    if pn and any(kw in pn.upper() for kw in package_markers):
         return pn
 
-    return desc
+    return desc or pn
 
 
 def _normalize_box(box):
@@ -144,6 +193,81 @@ def _box_center(box):
 def _box_size(box):
     """返回文本块宽高"""
     return (box[2] - box[0], box[3] - box[1])
+
+
+def _axis_overlap_ratio(a, b, start_idx, end_idx):
+    """返回两个框在指定轴上的交叠比例，以较短边为分母。"""
+    overlap = max(0, min(a[end_idx], b[end_idx]) - max(a[start_idx], b[start_idx]))
+    shorter = min(a[end_idx] - a[start_idx], b[end_idx] - b[start_idx])
+    return overlap / max(shorter, 1)
+
+
+def _vertical_overlap_ratio(a, b):
+    return _axis_overlap_ratio(a, b, 1, 3)
+
+
+def _horizontal_overlap_ratio(a, b):
+    return _axis_overlap_ratio(a, b, 0, 2)
+
+
+def _parse_ocr_jsonl(raw_text: str):
+    """解析 PP-OCRv6 JSON/JSONL，返回文本块和图片尺寸信息。"""
+    records = []
+    stripped = raw_text.strip()
+    if not stripped:
+        return [], {}
+
+    try:
+        parsed = json.loads(stripped)
+        records = parsed if isinstance(parsed, list) else [parsed]
+    except json.JSONDecodeError:
+        for line in stripped.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                logger.warning("Skipping malformed JSONL line: %.80s", line)
+
+    text_blocks = []
+    data_info = {}
+    for obj in records:
+        if not isinstance(obj, dict):
+            continue
+        result = obj.get("result")
+        if not isinstance(result, dict):
+            result = obj.get("data")
+        if not isinstance(result, dict) or "ocrResults" not in result:
+            result = obj
+        if not isinstance(result, dict):
+            continue
+
+        if not data_info and isinstance(result.get("dataInfo"), dict):
+            data_info = result["dataInfo"]
+
+        for ocr_result in result.get("ocrResults") or []:
+            pruned = ocr_result.get("prunedResult") or {}
+            rec_texts = pruned.get("rec_texts") or []
+            rec_scores = pruned.get("rec_scores") or []
+            rec_boxes = pruned.get("rec_boxes") or []
+            rec_polys = pruned.get("rec_polys") or pruned.get("dt_polys") or []
+
+            for idx, text in enumerate(rec_texts):
+                text = str(text).strip()
+                if not text:
+                    continue
+                polygon = rec_polys[idx] if idx < len(rec_polys) else None
+                raw_box = rec_boxes[idx] if idx < len(rec_boxes) else polygon
+                score = rec_scores[idx] if idx < len(rec_scores) else None
+                text_blocks.append({
+                    "text": text,
+                    "box": _normalize_box(raw_box),
+                    "polygon": polygon,
+                    "score": score,
+                })
+
+    return text_blocks, data_info
 
 
 def _is_cjk(ch):
@@ -321,6 +445,7 @@ _FIELD_PATTERNS = {
     ],
     "quantity": [
         ("Q'ty", "en"), ("Qty", "en"), ("qty", "en"), ("QTY", "en"),
+        ("OTY", "en"), ("0TY", "en"),
         ("Quantity", "en"), ("数量", "cn"), ("件数", "cn"), ("总数", "cn"),
     ],
     "production_date": [
@@ -526,7 +651,7 @@ def _truncate_at_next_label(text, current_field):
             # 要求关键词前是空格/冒号/字符串开头，防止长 token 内部匹配
             # （如 W23-LOT456 中的 LOT、ABC-EXPIRY-DT 中的 EXP）
             m = re.search(rf"(?:^|(?<=[\s:：])){re.escape(kw)}(?=[A-Za-z0-9]|\s*[:：]|$)", text, re.IGNORECASE)
-            if m and m.start() < earliest and m.start() > 0:
+            if m and m.start() < earliest:
                 earliest = m.start()
     return text[:earliest].strip()
 
@@ -714,7 +839,84 @@ def _is_any_label(block):
     return False
 
 
-def _grid_value_for_label(block, ri, ci, row, rows, field, kw):
+def _find_value_for_label(label_block, blocks, field, keyword):
+    """直接基于框交叠为标签寻找值，不依赖全局行列聚类。
+
+    优先取同一视觉行右侧的连续非标签块；没有时取下方与标签水平重叠的最近一行。
+    这种方式可处理倾斜图片和同一图片内相互独立的左右区域。
+    """
+    raw_stripped = _strip_label_prefix(label_block["text"], keyword)
+    if raw_stripped and raw_stripped != label_block["text"].strip():
+        inline = _truncate_at_next_label(raw_stripped, field)
+        if inline:
+            return inline, 1.0
+
+    lb = label_block["box"]
+    lcx, lcy = _box_center(lb)
+    _, lh = _box_size(lb)
+
+    right = []
+    for candidate in blocks:
+        if candidate is label_block or candidate.get("box") is None:
+            continue
+        cb = candidate["box"]
+        ccx, _ = _box_center(cb)
+        if ccx <= lcx or cb[0] < lb[2] - lh * 0.25:
+            continue
+        if _vertical_overlap_ratio(lb, cb) < 0.3:
+            continue
+        right.append(candidate)
+
+    parts = []
+    cursor_x = lb[2]
+    max_gap = max(lh * 5, (lb[2] - lb[0]) * 2.5)
+    for candidate in sorted(right, key=lambda b: b["box"][0]):
+        if candidate["box"][0] - cursor_x > max_gap:
+            break
+        if _is_any_label(candidate):
+            break
+        parts.append(candidate["text"])
+        cursor_x = max(cursor_x, candidate["box"][2])
+    if parts:
+        value = _truncate_at_next_label(_smart_join(parts), field)
+        if value:
+            return value, (0.95 if len(parts) == 1 else 0.9)
+
+    below = []
+    for candidate in blocks:
+        if candidate is label_block or candidate.get("box") is None:
+            continue
+        if _is_any_label(candidate):
+            continue
+        cb = candidate["box"]
+        _, ccy = _box_center(cb)
+        if ccy <= lcy + lh * 0.15:
+            continue
+        if _horizontal_overlap_ratio(lb, cb) < 0.25:
+            continue
+        if max(0, cb[1] - lb[3]) > lh * 4:
+            continue
+        below.append(candidate)
+
+    if below:
+        nearest_y = min(_box_center(b["box"])[1] for b in below)
+        median_h = _median([_box_size(b["box"])[1] for b in below]) or lh
+        same_row = [
+            b for b in below
+            if abs(_box_center(b["box"])[1] - nearest_y) <= median_h * 0.7
+        ]
+        same_row.sort(key=lambda b: b["box"][0])
+        value = _truncate_at_next_label(
+            _smart_join([b["text"] for b in same_row]),
+            field,
+        )
+        if value:
+            return value, (0.9 if len(same_row) == 1 else 0.75)
+
+    return "", 0.0
+
+
+def _grid_value_for_label(block, ri, ci, row, rows, all_blocks, field, kw):
     """为命中的标签块取值，优先级：(inline) > (同行右侧非标签块拼接) > (下一行同列)。
 
     返回 (value, confidence)。inline 与单一同行值/单一同列值为 1.0；
@@ -729,7 +931,12 @@ def _grid_value_for_label(block, ri, ci, row, rows, field, kw):
         if inline:
             return inline, 1.0
 
-    # 2) 横向：同行右侧、到下一个标签前的所有非标签块拼接（解决多块值截断）
+    # 2) 直接按框交叠查找，避免倾斜或多区域图片被错误聚成同一行/列。
+    direct, direct_conf = _find_value_for_label(block, all_blocks, field, kw)
+    if direct:
+        return direct, direct_conf
+
+    # 3) 横向：同行右侧、到下一个标签前的所有非标签块拼接（解决多块值截断）
     parts = []
     for cb in row[ci + 1:]:
         if _is_any_label(cb):
@@ -740,7 +947,7 @@ def _grid_value_for_label(block, ri, ci, row, rows, field, kw):
         if val:
             return val, (1.0 if len(parts) == 1 else 0.9)
 
-    # 3) 纵向：下一行同列的块拼接（解决「标签在上、值在下」表格式排版，
+    # 4) 纵向：下一行同列的块拼接（解决「标签在上、值在下」表格式排版，
     #    以及 OCR 把一个值切成多个纵向块的情况）
     col = block.get("_col")
     if col is not None and ri + 1 < len(rows):
@@ -755,12 +962,22 @@ def _grid_value_for_label(block, ri, ci, row, rows, field, kw):
 def _extract_field_from_grid(rows, columns, field):
     """在网格中提取单个字段。返回 (raw_value, confidence) 或 ("", 0)。"""
     best_value, best_conf = "", 0.0
+    all_blocks = [block for row in rows for block in row]
     for ri, row in enumerate(rows):
         for ci, block in enumerate(row):
             kw, _ = _match_label_block(block, field)
             if not kw:
                 continue
-            val, conf = _grid_value_for_label(block, ri, ci, row, rows, field, kw)
+            val, conf = _grid_value_for_label(
+                block,
+                ri,
+                ci,
+                row,
+                rows,
+                all_blocks,
+                field,
+                kw,
+            )
             if val and conf > best_conf:
                 best_value, best_conf = val, conf
     return best_value, best_conf
@@ -1048,14 +1265,15 @@ def _extract_by_regex(clean_text: str) -> dict:
     ])
 
     # 数量
-    qty_raw = extract(["Q'ty", "Qty", "qty", "QTY", "数量", "件数", "总数"])
+    qty_keywords = ["Q'ty", "Qty", "qty", "QTY", "OTY", "0TY", "数量", "件数", "总数"]
+    qty_raw = extract(qty_keywords)
     if qty_raw:
         qty_raw = qty_raw.strip()
         if "/" in qty_raw:
             parts = qty_raw.split("/", 1)
             qty_raw = next((p.strip() for p in parts if re.search(r'\d\s*[kK]', p)), parts[-1].strip())
         if re.match(r"^[\d.]+$", qty_raw):
-            for kw in ["Q'ty", "Qty", "qty", "QTY", "数量", "件数", "总数"]:
+            for kw in qty_keywords:
                 m = re.search(
                     rf"\b{re.escape(kw)}\s*[:：]?\s*{re.escape(qty_raw)}\s*\n+\s*(条|PCS|pcs|只|万)",
                     clean_text,
@@ -1088,7 +1306,7 @@ def _extract_by_regex(clean_text: str) -> dict:
 
 
 async def recognize_image(image_bytes: bytes) -> dict:
-    """调用 PaddleOCR PP-OCRv5 异步 API 对图片执行 OCR 识别"""
+    """调用 PaddleOCR PP-OCRv6 异步 API 对图片执行 OCR 识别"""
     if not TOKEN:
         return {"error": "未配置 PaddleOCR API TOKEN，请设置环境变量 PADDLEOCR_TOKEN（或兼容的 PADDOLEOCR_TOKEN）"}
 
@@ -1098,19 +1316,7 @@ async def recognize_image(image_bytes: bytes) -> dict:
         # 第一步：提交 OCR 任务
         data = {
             "model": MODEL,
-            "optionalPayload": json.dumps({
-                "markdownIgnoreLabels": [],
-                "useDocOrientationClassify": True,
-                "useDocUnwarping": True,
-                "useTextlineOrientation": True,
-                "textDetLimitType": "min",
-                "textDetLimitSideLen": 64,
-                "textDetThresh": 0.3,
-                "textDetBoxThresh": 0.6,
-                "textDetUnclipRatio": 1.5,
-                "textRecScoreThresh": 0,
-                "parseLanguage": "default",
-            }),
+            "optionalPayload": json.dumps(_build_optional_payload()),
         }
         files = {"file": ("image.jpg", image_bytes, "image/jpeg")}
 
@@ -1152,31 +1358,8 @@ async def recognize_image(image_bytes: bytes) -> dict:
         jsonl_resp.raise_for_status()
         raw_jsonl_text = jsonl_resp.text
 
-        # 解析 JSONL 结果，收集带坐标的文本块
-        text_blocks = []
-        for line in raw_jsonl_text.strip().split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                result = json.loads(line).get("result", {})
-            except json.JSONDecodeError:
-                logger.warning("Skipping malformed JSONL line: %.80s", line)
-                continue
-            for res in result.get("ocrResults", []):
-                pruned = res.get("prunedResult", {})
-                rec_texts = pruned.get("rec_texts", [])
-                rec_boxes = pruned.get("rec_boxes", [])
-                rec_scores = pruned.get("rec_scores", [])
-                for idx, text in enumerate(rec_texts):
-                    text = text.strip()
-                    if not text:
-                        continue
-                    box = None
-                    if rec_boxes and idx < len(rec_boxes):
-                        box = _normalize_box(rec_boxes[idx])
-                    score = rec_scores[idx] if rec_scores and idx < len(rec_scores) else None
-                    text_blocks.append({"text": text, "box": box, "score": score})
+        # 解析 PP-OCRv6 JSON/JSONL，收集坐标、四边形与置信度。
+        text_blocks, data_info = _parse_ocr_jsonl(raw_jsonl_text)
 
         # 有坐标时用 Y 轴分行合并，否则退化为冒号拼接
         coord_blocks = [b for b in text_blocks if b["box"] is not None]
@@ -1200,7 +1383,7 @@ async def recognize_image(image_bytes: bytes) -> dict:
 
         # AAMI 专用规格提取规则
         if parsed["manufacturer"] == "AAMI":
-            aami_spec = _resolve_aami_spec(clean_raw)
+            aami_spec = _resolve_aami_spec(clean_raw, text_blocks=text_blocks)
             if aami_spec:
                 parsed["spec"] = aami_spec
 
@@ -1208,6 +1391,10 @@ async def recognize_image(image_bytes: bytes) -> dict:
             "raw_text": clean_raw,
             "parsed": parsed,
             "confidence": True,
+            "layout": {
+                "data_info": data_info,
+                "blocks": text_blocks,
+            },
         }
     except httpx.TimeoutException:
         logger.error("PaddleOCR API timeout")

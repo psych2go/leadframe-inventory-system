@@ -10,6 +10,19 @@ import openpyxl
 import database as db
 
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _safe_excel_value(value):
+    """把用户文本固定为普通单元格内容，避免 Excel 公式注入。"""
+    if not isinstance(value, str):
+        return value
+    normalized = value.lstrip("\t\r\n")
+    if normalized.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 def _autosize_columns(ws):
     """根据列内容最大宽度自适应列宽（上限 30）"""
     for col in ws.columns:
@@ -38,7 +51,15 @@ def build_inventory_excel(rows) -> io.BytesIO:
         groups[key]["qty"] += db.qty_to_num(row["quantity"])
         groups[key]["count"] += 1
     for (pt, sp, pz, st, mf), g in groups.items():
-        ws1.append([pt, sp, pz, st, mf, db.num_to_qty(g["qty"]), g["count"]])
+        ws1.append([
+            _safe_excel_value(pt),
+            _safe_excel_value(sp),
+            _safe_excel_value(pz),
+            _safe_excel_value(st),
+            _safe_excel_value(mf),
+            db.num_to_qty(g["qty"]),
+            g["count"],
+        ])
     _autosize_columns(ws1)
 
     # Sheet 2: 明细（完整字段）
@@ -46,16 +67,16 @@ def build_inventory_excel(rows) -> io.BytesIO:
     ws2.append(["封装形式", "规格", "镀银区域", "表面粗化处理", "厂家", "批号", "生产日期", "有效期", "数量", "备注"])
     for row in rows:
         ws2.append([
-            row["package_type"],
-            row["spec"],
-            row["plating_zone"],
-            row["surface_treatment"],
-            row["manufacturer"],
-            row["batch_no"],
-            row["production_date"],
-            row["expiry_date"],
+            _safe_excel_value(row["package_type"]),
+            _safe_excel_value(row["spec"]),
+            _safe_excel_value(row["plating_zone"]),
+            _safe_excel_value(row["surface_treatment"]),
+            _safe_excel_value(row["manufacturer"]),
+            _safe_excel_value(row["batch_no"]),
+            _safe_excel_value(row["production_date"]),
+            _safe_excel_value(row["expiry_date"]),
             db.num_to_qty(db.qty_to_num(row["quantity"])),
-            row["note"] or "",
+            _safe_excel_value(row["note"] or ""),
         ])
     _autosize_columns(ws2)
 

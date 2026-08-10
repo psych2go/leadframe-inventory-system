@@ -119,5 +119,8 @@ async function submit() {
 </script>
 
 <style scoped>
-.submit-bar { padding: 16px; }
+.edit-page :deep(.van-field__control) {
+  font-family: var(--lf-data-font);
+}
+.submit-bar { padding: 12px; }
 </style>

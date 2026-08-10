@@ -37,8 +37,8 @@ export async function getWecomAuthUrl(redirect = '/') {
   return data
 }
 
-export async function wecomLogin(code) {
-  const { data } = await api.post('/auth/wecom/login', { code })
+export async function wecomLogin(code, state) {
+  const { data } = await api.post('/auth/wecom/login', { code, state })
   return data
 }
 

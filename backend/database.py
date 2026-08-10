@@ -4,7 +4,7 @@ import re
 import json
 from contextlib import contextmanager
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "inventory.db")
+DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "inventory.db"))
 
 # 复合分组键：以"封装形式+规格+镀银区域+表面处理+厂家"为分组的业务定义。
 # 集中定义一次，所有 GROUP BY / 精确匹配 WHERE 都从这里派生，避免 5 个字段散落各处。

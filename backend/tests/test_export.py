@@ -66,6 +66,17 @@ class TestBuildInventoryExcel(unittest.TestCase):
         ws = wb["库存明细"]
         self.assertEqual(ws.max_row, 1)  # 只有表头
 
+    def test_user_text_is_not_exported_as_formula(self):
+        rows = [_row(
+            spec='=HYPERLINK("https://example.invalid","click")',
+            note="=1+1",
+        )]
+        wb = openpyxl.load_workbook(build_inventory_excel(rows), data_only=False)
+        self.assertEqual(wb["库存汇总"]["B2"].data_type, "s")
+        self.assertTrue(wb["库存汇总"]["B2"].value.startswith("'="))
+        self.assertEqual(wb["库存明细"]["J2"].data_type, "s")
+        self.assertEqual(wb["库存明细"]["J2"].value, "'=1+1")
+
 
 if __name__ == "__main__":
     unittest.main()
