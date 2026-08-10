@@ -183,6 +183,20 @@ class TestGroupedQueries(_TempDbTestCase):
         self.assertEqual(total, 1)
         self.assertEqual(db.qty_to_num(groups[0]["total_quantity"]), 8.0)
 
+    def test_alert_only_uses_five_k_threshold(self):
+        db.stock_in(operator="t", quantity="4.999", **_key_fields(batch_no="LOW"))
+        db.stock_in(
+            operator="t",
+            quantity="5",
+            **_key_fields(spec="20x20", batch_no="BOUNDARY"),
+        )
+
+        groups, total = db.inventory_list_grouped(alert_only=True)
+
+        self.assertEqual(total, 1)
+        self.assertEqual(groups[0]["batch_count"], 1)
+        self.assertEqual(db.qty_to_num(groups[0]["total_quantity"]), 4.999)
+
 
 if __name__ == "__main__":
     unittest.main()

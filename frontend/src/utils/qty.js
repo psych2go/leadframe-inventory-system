@@ -14,8 +14,8 @@ export function parseQtyToK(val) {
 /**
  * 判断库存是否低于阈值（K 单位比较）
  * @param {string|number} quantity 库存数量（K 单位值）
- * @param {number} thresholdK 阈值，默认 2（即 2K）
+ * @param {number} thresholdK 阈值，默认 5（即 5K）
  */
-export function isLowStock(quantity, thresholdK = 2) {
+export function isLowStock(quantity, thresholdK = 5) {
   return parseQtyToK(quantity) < thresholdK
 }

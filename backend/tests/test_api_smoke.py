@@ -89,6 +89,11 @@ class TestApiFlow(unittest.TestCase):
         self.assertEqual(exp.status_code, 200)
         self.assertIn("spreadsheet", exp.headers.get("content-type", ""))
 
+    def test_4b_alert_threshold_is_five_k(self):
+        response = self.client.get("/api/inventory/alerts")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["threshold"], 5)
+
     def test_5_merge_on_conflict_via_put(self):
         # 两条同组不同批号
         ra = self.client.post("/api/stock-in", json=_stockin_payload(batch_no="SMK-MRG-A", quantity="5",

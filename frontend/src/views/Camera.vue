@@ -83,7 +83,7 @@
         <van-cell-group title="原始识别文字">
           <div class="raw-text-line" v-for="(line, i) in ocrResult.raw_text.split('\n').filter(l => l.trim())" :key="i">
             <span class="line-text">{{ line }}</span>
-            <van-button size="mini" plain type="primary" @click="copyValue(line)">
+            <van-button size="mini" type="primary" @click="copyValue(line)">
               复制
             </van-button>
           </div>

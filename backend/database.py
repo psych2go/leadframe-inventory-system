@@ -12,6 +12,7 @@ DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "inventor
 COMPOSITE_KEY = ("package_type", "spec", "plating_zone", "surface_treatment", "manufacturer")
 # GROUP BY 列串（纯字符串，无参数），供聚合查询复用
 GROUP_BY_KEY = ", ".join(COMPOSITE_KEY)
+ALERT_THRESHOLD_K = 5
 
 
 def get_connection():
@@ -281,7 +282,8 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
     with get_db() as conn:
         where, params = build_search_conditions(search, package_type, spec, plating_zone, surface_treatment, manufacturer)
 
-        having = " HAVING COALESCE(SUM(CAST(quantity AS REAL)), 0) < 2" if alert_only else ""
+        having = " HAVING COALESCE(SUM(CAST(quantity AS REAL)), 0) < ?" if alert_only else ""
+        having_params = [ALERT_THRESHOLD_K] if alert_only else []
 
         rows = conn.execute(
             f"""SELECT package_type, spec, plating_zone, surface_treatment, manufacturer,
@@ -292,7 +294,7 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
                 {having}
                 ORDER BY MAX(updated_at) DESC
                 LIMIT ? OFFSET ?""",
-            params + [size, (page - 1) * size],
+            params + having_params + [size, (page - 1) * size],
         ).fetchall()
 
         total = conn.execute(
@@ -301,7 +303,7 @@ def inventory_list_grouped(search: str = None, page: int = 1, size: int = 20,
                    GROUP BY {GROUP_BY_KEY}
                    {having}
                )""",
-            params,
+            params + having_params,
         ).fetchone()["total"]
 
         groups = []

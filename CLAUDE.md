@@ -72,7 +72,7 @@ SQLite，文件 `backend/inventory.db`。
 
 ### 数量单位
 
-所有数量以 **K（千）** 为单位存储为 TEXT 类型，最多 3 位小数。如 `"46.368"` 表示 46,368 只。前端通过 `qty.js` 的 `parseQtyToK()` 统一解析。预警阈值为 2K。
+所有数量以 **K（千）** 为单位存储为 TEXT 类型，最多 3 位小数。如 `"46.368"` 表示 46,368 只。前端通过 `qty.js` 的 `parseQtyToK()` 统一解析。预警阈值为 5K。
 
 ### 入库规则
 
@@ -300,7 +300,7 @@ npm run dev
 | POST | /api/ocr | 图片 OCR 识别（限制 20MB） |
 | GET | /api/inventory | 库存列表（?search=&package_type=&spec=&plating_zone=&surface_treatment=&page=&size=） |
 | GET | /api/inventory/filter-options | 获取筛选选项（去重的封装形式和规格列表） |
-| GET | /api/inventory/alerts | 低库存预警（分组总量 < 2K） |
+| GET | /api/inventory/alerts | 低库存预警（分组总量 < 5K） |
 | GET | /api/inventory-grouped | 分组库存列表（按封装形式/规格/镀银区域/表面处理/厂家聚合，?alert=true 只返回预警） |
 | GET | /api/inventory-grouped/detail | 分组库存详情（含批次列表） |
 | PUT | /api/inventory-grouped/update | 批量更新同组库存的共有字段 |

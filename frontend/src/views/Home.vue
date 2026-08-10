@@ -159,7 +159,7 @@ const router = useRouter()
 const stockLogs = ref([])
 const showLogs = ref(false)
 const alertItems = ref([])
-const threshold = ref(2)
+const threshold = ref(5)
 const alertExpanded = ref(true)
 const totalItems = ref(0)
 

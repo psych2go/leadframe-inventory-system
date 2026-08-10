@@ -72,7 +72,7 @@ def list_inventory(search: str = None,
     return {"items": items, "total": total, "total_quantity": total_quantity, "page": page, "size": size}
 
 
-ALERT_THRESHOLD = 2  # 单位: K（2K = 2000 只）
+ALERT_THRESHOLD = db.ALERT_THRESHOLD_K
 
 
 @router.get("/inventory/filter-options")
@@ -96,7 +96,7 @@ def get_filter_options():
 
 @router.get("/inventory/alerts")
 def get_inventory_alerts():
-    """获取低库存预警列表（分组总量 < 2K）"""
+    """获取低库存预警列表（分组总量 < 5K）"""
     with db.get_db() as conn:
         rows = conn.execute(
             """SELECT package_type, spec, plating_zone, surface_treatment, manufacturer,
