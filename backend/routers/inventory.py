@@ -57,6 +57,7 @@ class InventoryUpdateRequest(BaseModel):
     batch_no: str = None
     production_date: str = None
     expiry_date: str = None
+    note: str = None
 
 
 @router.get("/inventory")
@@ -318,6 +319,7 @@ def update_inventory(item_id: int, req: InventoryUpdateRequest, request: Request
         "plating_zone": req.plating_zone, "surface_treatment": req.surface_treatment,
         "manufacturer": req.manufacturer, "batch_no": req.batch_no,
         "production_date": req.production_date, "expiry_date": req.expiry_date,
+        "note": req.note,
     }.items() if v is not None}
 
     if updates:

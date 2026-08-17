@@ -94,6 +94,23 @@ class TestApiFlow(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["threshold"], 5)
 
+    def test_4c_update_inventory_note_persists(self):
+        created = self.client.post(
+            "/api/stock-in",
+            json=_stockin_payload(batch_no="SMK-NOTE", quantity="5", note="原备注"),
+        )
+        self.assertEqual(created.status_code, 200, created.text)
+        inv_id = created.json()["id"]
+
+        updated = self.client.put(
+            f"/api/inventory/{inv_id}",
+            json={"note": "修改后的备注"},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+
+        item = self.client.get(f"/api/inventory/{inv_id}").json()
+        self.assertEqual(item["note"], "修改后的备注")
+
     def test_5_merge_on_conflict_via_put(self):
         # 两条同组不同批号
         ra = self.client.post("/api/stock-in", json=_stockin_payload(batch_no="SMK-MRG-A", quantity="5",
