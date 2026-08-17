@@ -22,7 +22,7 @@
     <div class="section-title">
       <span>批次明细</span>
       <div class="section-actions">
-        <span class="section-action section-action-in" @click="showInForm = true">
+        <span class="section-action section-action-in" @click="openInForm">
           <van-icon name="down" size="14" />
           入库
         </span>
@@ -105,21 +105,40 @@
       <van-empty v-if="!logsLoading && !stockLogs.length" description="暂无出入库记录" image="default" />
     </div>
 
-    <!-- 出库弹窗 -->
     <!-- 入库弹窗 -->
-    <van-popup v-model:show="showInForm" position="bottom" round :style="{ maxHeight: '70%' }">
+    <van-popup v-model:show="showInForm" position="bottom" round :style="{ maxHeight: '85%', overflowY: 'auto' }">
       <div class="out-popup">
         <div class="out-popup-header">
-          <span class="out-popup-title">选择入库批次</span>
+          <span class="out-popup-title">入库</span>
           <van-icon name="cross" size="20" color="var(--lf-text-muted)" @click="showInForm = false" />
         </div>
-        <div class="out-batch-list">
+
+        <div class="in-form">
+          <van-field
+            v-model="inBatchNo"
+            label="批号"
+            placeholder="请输入新批号"
+            clearable
+            required
+            @update:model-value="onInBatchNoInput"
+          />
+          <van-field
+            v-model="inQuantity"
+            label="入库数量(K)"
+            type="number"
+            placeholder="请输入入库数量"
+            required
+          />
+        </div>
+
+        <div v-if="batches.length" class="popup-section-label">也可点击已有批次快速填入</div>
+        <div v-if="batches.length" class="out-batch-list">
           <div
             v-for="b in batches"
             :key="'in-'+b.id"
             class="out-batch-item"
             :class="{ active: inBatch?.id === b.id }"
-            @click="inBatch = b"
+            @click="selectInBatch(b)"
           >
             <div class="out-batch-info">
               <span class="out-batch-no">批号: {{ b.batch_no || '-' }}</span>
@@ -128,8 +147,7 @@
             <span class="out-batch-qty">{{ b.quantity }}K</span>
           </div>
         </div>
-        <div v-if="inBatch" class="out-form">
-          <van-field v-model="inQuantity" label="入库数量(K)" type="number" placeholder="请输入入库数量" />
+        <div class="out-form">
           <van-button type="primary" block @click="doStockIn" :loading="submitting">确认入库</van-button>
         </div>
       </div>
@@ -202,6 +220,7 @@ const batches = ref([])
 const selectedBatch = ref(null)
 const showInForm = ref(false)
 const inBatch = ref(null)
+const inBatchNo = ref('')
 const inQuantity = ref('')
 const showOutForm = ref(false)
 const outBatch = ref(null)
@@ -276,6 +295,23 @@ function onEdit() {
   router.push({ name: 'InventoryGroupedEdit', query: getQueryParams() })
 }
 
+function openInForm() {
+  inBatch.value = null
+  inBatchNo.value = ''
+  inQuantity.value = ''
+  showInForm.value = true
+}
+
+function selectInBatch(batch) {
+  inBatch.value = batch
+  inBatchNo.value = batch.batch_no || ''
+}
+
+function onInBatchNoInput() {
+  const batchNo = inBatchNo.value.trim()
+  inBatch.value = batches.value.find(b => (b.batch_no || '') === batchNo) || null
+}
+
 function onEditNote(b) {
   noteBatch.value = b
   noteText.value = b.note || ''
@@ -333,21 +369,24 @@ async function onDeleteBatch(b) {
 }
 
 async function doStockIn() {
-  if (!inBatch.value) return showToast('请选择入库批次')
+  const batchNo = inBatchNo.value.trim()
+  if (!batchNo) return showToast('请输入批号')
   const qty = Number(inQuantity.value)
   if (!qty || qty <= 0) return showToast('请输入有效入库数量')
+  const selectedExistingBatch = batches.value.find(b => (b.batch_no || '') === batchNo) || null
   submitting.value = true
   try {
     await stockIn({
       ...getQueryParams(),
-      batch_no: inBatch.value.batch_no || '',
-      production_date: inBatch.value.production_date || '',
-      expiry_date: inBatch.value.expiry_date || '',
+      batch_no: batchNo,
+      production_date: selectedExistingBatch?.production_date || '',
+      expiry_date: selectedExistingBatch?.expiry_date || '',
       quantity: String(qty),
     })
     showSuccessToast('入库成功')
     showInForm.value = false
     inBatch.value = null
+    inBatchNo.value = ''
     inQuantity.value = ''
     loadData()
   } catch (e) {
@@ -435,6 +474,13 @@ async function doStockOut() {
   margin-bottom: 12px;
 }
 .out-popup-title { font-size: 16px; font-weight: 600; }
+.in-form {
+  overflow: hidden; border: 1px solid var(--lf-border); border-radius: 8px;
+  background: white;
+}
+.popup-section-label {
+  padding: 16px 2px 8px; font-size: 12px; color: var(--lf-text-muted);
+}
 .out-batch-list { max-height: 240px; overflow-y: auto; }
 .out-batch-item {
   display: flex; align-items: center; justify-content: space-between;
