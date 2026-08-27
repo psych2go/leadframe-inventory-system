@@ -202,13 +202,13 @@ def build_search_conditions(search: str = None,
     where = ""
     params = []
     if search:
-        where = """ AND (package_type LIKE ? OR spec LIKE ? OR plating_zone LIKE ?
+        where = """ AND (package_type = ? OR spec LIKE ? OR plating_zone LIKE ?
                    OR surface_treatment LIKE ? OR manufacturer LIKE ? OR batch_no LIKE ?)"""
         term = f"%{search}%"
-        params = [term, term, term, term, term, term]
+        params = [search, term, term, term, term, term]
     if package_type:
-        where += " AND package_type LIKE ?"
-        params.append(f"%{package_type}%")
+        where += " AND package_type = ?"
+        params.append(package_type)
     if spec:
         where += " AND spec LIKE ?"
         params.append(f"%{spec}%")

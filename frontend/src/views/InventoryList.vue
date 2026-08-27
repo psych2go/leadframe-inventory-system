@@ -41,19 +41,19 @@
 
     <!-- 动态选项 Picker -->
     <van-popup v-model:show="showPkgPicker" round position="bottom">
-      <van-picker :columns="pkgOptions" @confirm="onPkgConfirm" @cancel="showPkgPicker = false" />
+      <van-picker :columns="pkgOptions" @wheel="onPickerWheel" @confirm="onPkgConfirm" @cancel="showPkgPicker = false" />
     </van-popup>
     <van-popup v-model:show="showSpecPicker" round position="bottom">
-      <van-picker :columns="specOptions" @confirm="onSpecConfirm" @cancel="showSpecPicker = false" />
+      <van-picker :columns="specOptions" @wheel="onPickerWheel" @confirm="onSpecConfirm" @cancel="showSpecPicker = false" />
     </van-popup>
     <van-popup v-model:show="showPlatingPicker" round position="bottom">
-      <van-picker :columns="platingOptions" @confirm="onPlatingConfirm" @cancel="showPlatingPicker = false" />
+      <van-picker :columns="platingOptions" @wheel="onPickerWheel" @confirm="onPlatingConfirm" @cancel="showPlatingPicker = false" />
     </van-popup>
     <van-popup v-model:show="showSurfacePicker" round position="bottom">
-      <van-picker :columns="surfaceOptions" @confirm="onSurfaceConfirm" @cancel="showSurfacePicker = false" />
+      <van-picker :columns="surfaceOptions" @wheel="onPickerWheel" @confirm="onSurfaceConfirm" @cancel="showSurfacePicker = false" />
     </van-popup>
     <van-popup v-model:show="showMfrPicker" round position="bottom">
-      <van-picker :columns="mfrOptions" @confirm="onMfrConfirm" @cancel="showMfrPicker = false" />
+      <van-picker :columns="mfrOptions" @wheel="onPickerWheel" @confirm="onMfrConfirm" @cancel="showMfrPicker = false" />
     </van-popup>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
@@ -155,6 +155,25 @@ const onSpecConfirm = makePickerHandler('spec', showSpecPicker)
 const onPlatingConfirm = makePickerHandler('plating_zone', showPlatingPicker)
 const onSurfaceConfirm = makePickerHandler('surface_treatment', showSurfacePicker)
 const onMfrConfirm = makePickerHandler('manufacturer', showMfrPicker)
+
+function onPickerWheel(event) {
+  const target = event.target?.closest?.('.van-picker-column')
+  if (!target || !event.deltaY) return
+
+  event.preventDefault()
+  const options = [...target.querySelectorAll('.van-picker-column__item')]
+  const selectedIndex = options.findIndex(option => option.classList.contains('van-picker-column__item--selected'))
+  if (selectedIndex < 0) return
+
+  const direction = event.deltaY > 0 ? 1 : -1
+  let nextIndex = selectedIndex + direction
+  while (nextIndex >= 0 && nextIndex < options.length && options[nextIndex].classList.contains('van-picker-column__item--disabled')) {
+    nextIndex += direction
+  }
+  if (nextIndex < 0 || nextIndex >= options.length) return
+
+  options[nextIndex].click()
+}
 
 const hasActiveFilters = computed(() =>
   filters.package_type || filters.spec || filters.plating_zone || filters.surface_treatment || filters.manufacturer,

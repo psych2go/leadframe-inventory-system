@@ -183,6 +183,16 @@ class TestGroupedQueries(_TempDbTestCase):
         self.assertEqual(total, 1)
         self.assertEqual(db.qty_to_num(groups[0]["total_quantity"]), 8.0)
 
+    def test_search_matches_package_type_exactly(self):
+        db.stock_in(operator="t", quantity="5", **_key_fields(package_type="SOP8L", batch_no="SOP-LOT"))
+        db.stock_in(operator="t", quantity="5", **_key_fields(package_type="MSOP8L", batch_no="MSOP-LOT"))
+
+        groups, total = db.inventory_list_grouped(search="SOP8L")
+
+        self.assertEqual(total, 1)
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]["package_type"], "SOP8L")
+
     def test_alert_only_uses_five_k_threshold(self):
         db.stock_in(operator="t", quantity="4.999", **_key_fields(batch_no="LOW"))
         db.stock_in(
