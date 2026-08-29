@@ -105,7 +105,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { ocrRecognize, getInventoryList, stockOut } from '../api'
-import { getRawPhoto, isWebRTCSupported } from '../utils/wxsdk'
+import { getRawPhoto, shouldUseWebRTCViewfinder } from '../utils/wxsdk'
 import { parseQtyToK } from '../utils/qty'
 import Viewfinder from '../components/Viewfinder.vue'
 import CropModal from '../components/CropModal.vue'
@@ -126,11 +126,13 @@ const outQuantity = ref('')
 const showViewfinder = ref(false)
 const showCrop = ref(false)
 const cropFile = ref(null)
+const useSystemCamera = ref(false)
 
 async function handleCapture(source = 'camera') {
-  if (source === 'camera' && isWebRTCSupported()) {
+  if (source === 'camera' && !useSystemCamera.value && shouldUseWebRTCViewfinder()) {
     showViewfinder.value = true
   } else {
+    // 手机端、企微和 WebRTC 失败后的拍照都直接使用系统相机。
     try {
       const file = await getRawPhoto(source)
       cropFile.value = file
@@ -148,10 +150,10 @@ async function onViewfinderCapture(file) {
   await onFileRead({ file })
 }
 
-async function onViewfinderError(msg) {
+function onViewfinderError(msg) {
   showViewfinder.value = false
-  showToast({ message: msg + '，使用系统相机', position: 'bottom' })
-  handleCapture('camera')
+  useSystemCamera.value = true
+  showToast({ message: msg + '，请再次点击拍照使用系统相机', position: 'bottom' })
 }
 
 function onViewfinderCancel() {

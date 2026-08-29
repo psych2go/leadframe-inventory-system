@@ -112,7 +112,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { ocrRecognize, stockIn } from '../api'
-import { getRawPhoto, isWebRTCSupported } from '../utils/wxsdk'
+import { getRawPhoto, shouldUseWebRTCViewfinder } from '../utils/wxsdk'
 import Viewfinder from '../components/Viewfinder.vue'
 import CropModal from '../components/CropModal.vue'
 import { platingOptions, surfaceOptions } from '../composables/useInventoryEnums'
@@ -130,6 +130,7 @@ const showSurfacePicker = ref(false)
 const showViewfinder = ref(false)
 const showCrop = ref(false)
 const cropFile = ref(null)
+const useSystemCamera = ref(false)
 
 const form = reactive({
   package_type: '',
@@ -154,18 +155,17 @@ function onSurfaceConfirm({ selectedValues }) {
 }
 
 async function handleCapture(source = 'camera') {
-  if (source === 'camera' && isWebRTCSupported()) {
-    // 方案 B：实时取景框（WebRTC）
+  if (source === 'camera' && !useSystemCamera.value && shouldUseWebRTCViewfinder()) {
     showViewfinder.value = true
   } else {
-    // 方案 A（降级）：拍照/选图后裁剪
+    // 手机端、企微和 WebRTC 失败后的拍照都直接使用系统相机。
     try {
       const file = await getRawPhoto(source)
       cropFile.value = file
       showCrop.value = true
     } catch (e) {
       if (e.message !== '未选择图片') {
-        showToast({ message: e.message === '未选择图片' ? '' : '拍照失败: ' + e.message, position: 'bottom' })
+        showToast({ message: '拍照失败: ' + e.message, position: 'bottom' })
       }
     }
   }
@@ -176,10 +176,10 @@ async function onViewfinderCapture(file) {
   await onFileRead({ file })
 }
 
-async function onViewfinderError(msg) {
+function onViewfinderError(msg) {
   showViewfinder.value = false
-  showToast({ message: msg + '，使用系统相机', position: 'bottom' })
-  handleCapture('camera')
+  useSystemCamera.value = true
+  showToast({ message: msg + '，请再次点击拍照使用系统相机', position: 'bottom' })
 }
 
 async function onViewfinderCancel() {

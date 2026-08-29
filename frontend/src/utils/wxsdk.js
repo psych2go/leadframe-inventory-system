@@ -5,6 +5,15 @@
 
 const isWecom = () => /wxwork/i.test(navigator.userAgent)
 
+function isMobileDevice() {
+  const userAgentDataMobile = navigator.userAgentData?.mobile
+  if (typeof userAgentDataMobile === 'boolean') return userAgentDataMobile
+
+  const userAgent = navigator.userAgent
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent)
+    || (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1)
+}
+
 /**
  * WebRTC 支持检测
  * 带 try/catch 兜底，因为 X5 内核可能虽返回对象但调用时报错
@@ -15,6 +24,14 @@ export function isWebRTCSupported() {
   } catch {
     return false
   }
+}
+
+/**
+ * 手机端和企微内优先使用系统相机，避免 WebRTC 权限与 X5 内核兼容问题。
+ * 桌面浏览器仍可使用实时取景框。
+ */
+export function shouldUseWebRTCViewfinder() {
+  return isWebRTCSupported() && !isWecom() && !isMobileDevice()
 }
 
 let wxReady = false
