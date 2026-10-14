@@ -53,6 +53,7 @@ body {
   color: var(--lf-text);
   background: var(--lf-bg);
   min-height: 100vh;
+  padding-bottom: 40px;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -172,4 +173,5 @@ textarea {
     animation-duration: 0.01ms !important;
   }
 }
+
 </style>
